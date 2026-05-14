@@ -102,7 +102,7 @@ docs/megaplan/
 | Skipping the `document (pre)` step | Docs drift from reality |
 | B-item is too large (e.g., "CRUD for 8 tables") | Agent loses focus |
 | Marking `done` without documenting known drift | Pretending it's perfect |
-| Deploying without AGENTS.md at project root | Methodology has no teeth across sessions |
+| Missing AGENTS.md at project root | Methodology has no teeth across sessions |
 
 ## Reference
 

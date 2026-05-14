@@ -139,7 +139,7 @@ Copy these into `docs/megaplan/` in your project:
 | Creating a B-item without a detail file | Agent has no scope, test plan, or acceptance criteria |
 | B-item is too large (e.g., "CRUD for 8 tables") | Agent loses focus; split into atomic items |
 | Marking `done` without documenting known drift | Use the drift convention — don't pretend it's perfect |
-| Deploying without AGENTS.md at project root | Methodology has no teeth across sessions |
+| Missing AGENTS.md at project root | Methodology has no teeth across sessions |
 
 ## Quick reference
 

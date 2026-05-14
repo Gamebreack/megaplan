@@ -245,4 +245,4 @@ If any condition is missing, skip the ADR. Store ADRs at `docs/megaplan/adr/ADR-
 | Marking `done` without documenting known drift | Use the drift convention — don't pretend it's perfect |
 | Using `superseded` to hide decisions | Always keep superseded items — they explain why things changed |
 | Speculating future scope into the backlog | Adds noise; scope cycles when they start, not earlier |
-| Deploying without AGENTS.md at project root | Methodology has no teeth across sessions |
+| Missing AGENTS.md at project root | Methodology has no teeth across sessions |
