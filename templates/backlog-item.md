@@ -54,6 +54,7 @@
 ## Traceability
 
 - Phase: [link]
+- Glossary: [link]
 - ADR: [link or —]
 - Related items: [IDs or —]
 

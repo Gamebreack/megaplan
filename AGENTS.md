@@ -16,6 +16,16 @@ It combines three things:
 
 Place `AGENTS.md` at your project root. Most modern AI coding harnesses load it automatically.
 
+## How it works
+
+Three behaviors, in order:
+
+1. **Discover** — Grill the user about the project. Resolve every domain term into `glossary.md` before writing anything else.
+2. **Document** — Build the Megaplan structure: vision, cycles, phases, glossary, ADRs, B-items.
+3. **Implement** — Execute B-items one at a time via the workflow below.
+
+See `docs/methodology.md` for the full lifecycle.
+
 ## Core concepts
 
 ### Cycle
@@ -36,7 +46,7 @@ Name phases after their business outcome, not technical method:
 
 ### Backlog item (B-item)
 
-A **B-item** is a single deliverable with its own file. Each one contains:
+A **B-item** is a single, atomic deliverable with its own file. One focused behavior per item — an agent should finish it in one session. Each one contains:
 - Business outcome (one sentence)
 - Scope (bullet list)
 - Dependencies and blockers
@@ -53,11 +63,11 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 
 | Step | What happens |
 |------|--------------|
-| **document (pre)** | Write/update docs. No code until intent is documented. |
+| **document (pre)** | Write/update docs (glossary, ADRs, phase file). No code until intent is documented. |
 | **red** | Write failing tests that describe desired behavior. Tests must fail. |
 | **green** | Write minimum production code to pass all tests. Nothing extra. |
 | **blue** | Refactor without adding features or breaking tests. |
-| **document (post)** | Update all docs to reflect exactly what was built. |
+| **document (post)** | Update all docs (including glossary) to reflect exactly what was built. |
 | **COMPLETE** | Mark done in both `backlog.md` index and detail file. |
 
 **Never write production code without a failing test.**
@@ -94,8 +104,10 @@ Use only these values:
 docs/megaplan/
 ├── megaplan.md              # Product vision, cycle index, phase workflow
 ├── backlog.md              # Global backlog index
+├── glossary.md             # Canonical domain glossary
 ├── backlog-items/          # Each deliverable in its own file
 ├── phases/                 # Phase workflow docs
+├── adr/                    # Architecture Decision Records
 └── cycles/                # Scoping docs (optional)
 ```
 
@@ -104,6 +116,7 @@ docs/megaplan/
 Copy these into `docs/megaplan/` in your project:
 - `templates/megaplan.md` → `docs/megaplan/megaplan.md` (project root plan)
 - `templates/backlog.md` → `docs/megaplan/backlog.md` (backlog index)
+- `templates/glossary.md` → `docs/megaplan/glossary.md` (canonical domain glossary)
 - `templates/backlog-item.md` → `docs/megaplan/backlog-items/<ID>.md` (one per B-item)
 - `templates/phase.md` → `docs/megaplan/phases/<CYCLE>-P<N>.md` (one per phase)
 
@@ -120,6 +133,7 @@ Copy these into `docs/megaplan/` in your project:
 | Skipping the `document (pre)` step | Agent writes code first, docs drift from reality |
 | Creating a B-item without a detail file | Agent has no scope, test plan, or acceptance criteria |
 | Closing an item without updating docs | Next agent session has accurate code but stale docs |
+| B-item is too large (e.g., "CRUD for 8 tables") | Agent loses focus; split into atomic items before starting |
 
 ## Quick reference
 
@@ -131,8 +145,9 @@ Priority: P0 > P1 > P2 > P3
 
 Before starting any B-item:
 1. Read `docs/megaplan/backlog-items/<ID>.md` — create from `templates/backlog-item.md` if missing
-2. Check all dependencies are `done`
-3. Follow the phase workflow
+2. Read `docs/megaplan/glossary.md` — use project terminology, not your own
+3. Check all dependencies are `done`
+4. Follow the phase workflow
 
 ---
 

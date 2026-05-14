@@ -20,17 +20,45 @@ An AI session starts with zero memory. Megaplan fixes that by encoding *what was
 
 ---
 
+## Project lifecycle
+
+Megaplan operates in three sequential behaviors from project start to delivery:
+
+### 1. Discover
+
+The agent interviews you about the project — what it does, who it serves, what the domain concepts are. Use the [Glossary review protocol](#glossary-review-protocol-grilling) to resolve every term into a precise definition before writing any documents or code. Output: a populated `glossary.md` and a clear mental model of what to build.
+
+### 2. Document
+
+Capture the understanding as a Megaplan structure:
+- `megaplan.md` — project vision and cycle index
+- `backlog.md` — backlog index with status tracking
+- `backlog-items/<ID>.md` — one per B-item (see [B-item granularity](#backlog-item-b-item))
+- `phases/<CYCLE>-P<N>.md` — phase workflow docs
+- ADRs at `adr/ADR-NNN.md` — when warranted (see [ADR discipline](#adr-discipline))
+
+Output: a complete, actionable backlog. No code until all three behaviors are done.
+
+### 3. Implement
+
+Pick up B-items one at a time, following `document (pre) → red → green → blue → document (post) → COMPLETE`. See [The workflow](#the-workflow-mandatory-no-exceptions) for the full sequence.
+
+---
+
 ## Directory layout
 
 ```
 docs/megaplan/
 ├── megaplan.md              # from templates/megaplan.md — product vision, cycle index
 ├── backlog.md               # from templates/backlog.md — global backlog index
+├── glossary.md              # from templates/glossary.md — canonical domain glossary
 ├── backlog-items/           # one file per B-item, from templates/backlog-item.md
 │   ├── A-B1.md
 │   └── ...
 ├── phases/                  # one file per phase, from templates/phase.md
 │   └── A-P1.md
+├── adr/                     # architecture decision records
+│   └── ADR-001.md
 └── cycles/                  # optional scoping docs for longer cycles
     └── cycle-b.md
 ```
@@ -70,6 +98,21 @@ A B-item is the unit of work the agent picks up and delivers. Each one contains:
 - Test plan (which files, which levels)
 - Acceptance criteria (done checklist)
 - Traceability (links to phase, ADRs, related items)
+
+### B-item granularity
+
+A B-item must be **atomic** — one focused behavior an agent can deliver in a single session with minimal hallucination risk.
+
+**Not:**
+- "CRUD for products table" — mixes create, read, update, delete into one item
+
+**Yes:**
+- "Insert logic for products table"
+- "List endpoint for products"
+- "Update logic for products table"
+- "Delete logic for products table"
+
+Decompose until each B-item answers: "what single behavior does this deliver?"
 
 ---
 
@@ -147,6 +190,51 @@ When a cycle establishes a reusable pattern, document it as canonical. Subsequen
 - **Error boundaries**: where validation happens, what errors surface to the caller
 
 Document the canonical pattern in the phase that establishes it. Reference it in subsequent phases.
+
+---
+
+## Glossary and ADRs
+
+### Glossary (mandatory)
+
+Every Megaplan project maintains `docs/megaplan/glossary.md` — the canonical glossary of domain terms. It is the single source of truth for ubiquitous language across all Cycles, Phases, and B-items.
+
+**Purpose:**
+- Prevents terminology drift between Cycles — the same word means the same thing in Cycle B as it did in Cycle A
+- Gives every agent session the same vocabulary — no guessing what "cancellation" means in this project
+- Forces precision during planning — terms mean exactly one thing, no ambiguity
+
+The glossary is created during Cycle 0's `document (pre)` step and updated inline whenever a term is resolved, redefined, or retired.
+
+**Structure:** Each entry contains a term, its definition, a canonical usage example (from code or design), and a note on common confusions. See `templates/glossary.md`.
+
+### Glossary review protocol ("grilling")
+
+When scoping a new Cycle or B-item that introduces or uses a domain concept, apply this protocol:
+
+1. **Challenge against the glossary** — When a term is used in a new B-item or phase, check `glossary.md`. If it conflicts with the established definition, call it out: "Your glossary defines 'cancellation' as X, but this B-item seems to mean Y — which is it?"
+
+2. **Sharpen fuzzy language** — When vague or overloaded terms appear, propose a precise canonical term. "You say 'account' — do you mean Customer or User? Those are different things in this project."
+
+3. **Cross-reference with code** — When a term's meaning is stated, check whether the code agrees. "The code cancels entire Orders, but this B-item says partial cancellation is possible — which is right?"
+
+4. **Resolve one decision at a time** — Don't batch ambiguity. Ask one question, resolve it, update the glossary, then move to the next.
+
+5. **Update glossary inline** — When a term is resolved, update `glossary.md` immediately. Don't defer or batch these changes.
+
+### GLOSSARY-MAP.md (for multi-domain projects)
+
+If the project spans multiple bounded contexts (e.g., separate `ordering/` and `billing/` domains), create `docs/megaplan/glossary-map.md` mapping each domain to its own glossary file. Each domain maintains its own terminology.
+
+### ADR discipline
+
+Create an ADR only when **all three** conditions are true:
+
+1. **Hard to reverse** — the cost of changing this decision later is meaningful
+2. **Surprising without context** — a future reader would wonder "why did they do it this way?"
+3. **The result of a real trade-off** — genuine alternatives existed and one was chosen for specific reasons
+
+If any condition is missing, skip the ADR. Store ADRs at `docs/megaplan/adr/ADR-NNN.md`.
 
 ---
 
