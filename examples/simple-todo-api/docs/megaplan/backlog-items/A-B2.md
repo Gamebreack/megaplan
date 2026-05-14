@@ -7,7 +7,6 @@
 | Status | ready |
 | Priority | P1 |
 | Owner | team |
-| Phase | [A-P1](../phases/A-P1.md) |
 | Depends on | A-B1 |
 | Target | 2026-05-10 |
 | Last updated | 2026-05-03 |
@@ -49,10 +48,9 @@ Users can list all todos with pagination support.
 
 ## Traceability
 
-- Phase: [A-P1](../phases/A-P1.md)
 - ADR: —
 - Related items: [A-B1](A-B1.md)
 
 ## Notes
 
-Queued behind A-B1. Will start after A-B1 reaches document (post) phase.
+Queued behind A-B1. Will start after A-B1 reaches document (post) step.

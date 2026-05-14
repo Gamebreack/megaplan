@@ -11,7 +11,7 @@ Cycle 0 scaffolds the project with database and CI. Cycle A delivers the first p
 - Cycle 0: Project scaffold, database schema, CI/CD
 - Cycle A: Todo CRUD operations and list with pagination
 
-## Phase workflow
+## Workflow
 
 document (pre) → red → green → blue → document (post) → COMPLETE
 
@@ -22,15 +22,22 @@ Status: COMPLETE
 
 Scope: Project setup, database schema, CI pipeline, basic tooling
 
+| B-item | Title | Status |
+|--------|-------|--------|
+| 0-B1 | Project scaffold | done |
+| 0-B2 | Database schema | done |
+| 0-B3 | In-memory storage prototype | superseded |
+
 ### Cycle A — Todo Domain
 Status: IN PROGRESS
 
 Scope: Todo CRUD operations, list with pagination
 
-| Phase | Title | Status |
-|-------|-------|--------|
-| 0-P1 | Scaffold | done |
-| A-P1 | Todo CRUD | in-progress |
+| B-item | Title | Status |
+|--------|-------|--------|
+| A-B1 | Todo CRUD | in-progress |
+| A-B2 | List todos | ready |
+| A-B3 | User accounts | blocked |
 
 ## Errata
 

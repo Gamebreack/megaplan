@@ -20,11 +20,11 @@
 
 ## Index
 
-| ID | Title | Phase | Status | Priority | Owner | Depends on | Detail |
-|----|-------|-------|--------|----------|-------|-----------|--------|
-| 0-B1 | Project scaffold | 0-P1 | done | P0 | team | — | [0-B1](backlog-items/0-B1.md) |
-| 0-B2 | Database schema | 0-P1 | done | P0 | team | 0-B1 | [0-B2](backlog-items/0-B2.md) |
-| 0-B3 | In-memory storage prototype | 0-P1 | superseded | P2 | team | 0-B1 | [0-B3](backlog-items/0-B3.md) |
-| A-B1 | Todo CRUD | A-P1 | in-progress | P0 | team | 0-B2 | [A-B1](backlog-items/A-B1.md) |
-| A-B2 | List todos | A-P1 | ready | P1 | team | A-B1 | [A-B2](backlog-items/A-B2.md) |
-| A-B3 | User accounts | A-P1 | blocked | P1 | team | A-B1 | [A-B3](backlog-items/A-B3.md) |
+| ID | Title | Status | Owner | Depends on | Detail |
+|----|-------|--------|-------|------------|--------|
+| 0-B1 | Project scaffold | done | team | — | [0-B1](backlog-items/0-B1.md) |
+| 0-B2 | Database schema | done | team | 0-B1 | [0-B2](backlog-items/0-B2.md) |
+| 0-B3 | In-memory storage prototype | superseded | team | 0-B1 | [0-B3](backlog-items/0-B3.md) |
+| A-B1 | Todo CRUD | in-progress | team | 0-B2 | [A-B1](backlog-items/A-B1.md) |
+| A-B2 | List todos | ready | team | A-B1 | [A-B2](backlog-items/A-B2.md) |
+| A-B3 | User accounts | blocked | team | A-B1 | [A-B3](backlog-items/A-B3.md) |

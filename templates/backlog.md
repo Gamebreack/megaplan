@@ -4,13 +4,13 @@
 
 | Status | Meaning |
 |--------|---------|
-| `pending` | Defined, not started, no blocker identified |
-| `ready` | Defined, unblocked, ready to pick up |
+| `pending` | Defined, not started |
 | `in-progress` | Actively being worked on |
-| `blocked` | Hard dependency unresolved |
-| `external` | Owned by another team; waiting on their delivery |
 | `done` | Delivered; code and docs in place |
 | `superseded` | Was delivered but later replaced; kept for traceability |
+
+**Drift:** When an item is `done` but has known issues, document the drift in the item's
+Notes section. Don't leave it `in-progress` — mark it `done` and list the drift explicitly.
 
 ## Rules
 
@@ -20,6 +20,6 @@
 
 ## Index
 
-| ID | Title | Phase | Status | Priority | Owner | Depends on | Detail |
-|----|-------|-------|--------|----------|-------|------------|--------|
-| 0-B1 | Example item | 0-P1 | pending | P0 | — | — | [0-B1](backlog-items/0-B1.md) |
+| ID | Title | Status | Owner | Depends on | Detail |
+|----|-------|--------|-------|------------|--------|
+| 0-B1 | Example item | pending | — | — | [0-B1](backlog-items/0-B1.md) |

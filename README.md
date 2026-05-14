@@ -8,7 +8,7 @@ AI agents start with zero memory each session. Megaplan fixes that by encoding *
 
 ## How it works
 
-**Cycles → Phases → B-items.** A Cycle is a major milestone (Cycle 0 scaffolds the project; Cycle A delivers the first domain; and so on). Each cycle contains sequenced Phases. Each phase contains one or more Backlog items (B-items) — the atomic unit of work.
+**Cycles → B-items.** A Cycle is a major milestone (Cycle 0 scaffolds the project; Cycle A delivers the first domain; and so on). Each cycle contains sequenced B-items — the atomic unit of work.
 
 **The workflow is mandatory.** Every B-item follows: `document (pre) → red → green → blue → document (post) → COMPLETE`. No production code before a failing test. No closing an item without updating docs.
 
@@ -25,7 +25,7 @@ Most modern AI coding harnesses load `AGENTS.md` automatically.
 **2. Create the directory structure**
 
 ```bash
-mkdir -p docs/megaplan/backlog-items docs/megaplan/phases docs/megaplan/cycles
+mkdir -p docs/megaplan/backlog-items
 ```
 
 **3. Copy the templates and fill them in**
@@ -33,10 +33,19 @@ mkdir -p docs/megaplan/backlog-items docs/megaplan/phases docs/megaplan/cycles
 ```bash
 cp templates/megaplan.md      docs/megaplan/megaplan.md
 cp templates/backlog.md       docs/megaplan/backlog.md
-# Copy templates/backlog-item.md and templates/phase.md as you create each item/phase
+cp templates/glossary.md      docs/megaplan/glossary.md
+# Copy templates/backlog-item.md as you create each B-item
 ```
 
-Write your project vision in `megaplan.md`, scope Cycle 0, and start working through phases.
+Write your project vision in `megaplan.md`, scope Cycle 0, and start working through B-items.
+
+## Harness compatibility
+
+| Harness | How to use |
+|---------|------------|
+| **OpenCode** | Copy `AGENTS.md` to your project root |
+| **Hermes Agent** | Copy `AGENTS.md` to your project root, or install as a skill: `hermes skills install Gamebreack/megaplan` |
+| **Claude Code** | Create `CLAUDE.md` with `@AGENTS.md`, or symlink: `ln -s AGENTS.md CLAUDE.md` |
 
 ## File inventory
 
@@ -45,11 +54,11 @@ Write your project vision in `megaplan.md`, scope Cycle 0, and start working thr
 | `AGENTS.md` | The skill — copy this to your project root |
 | `templates/megaplan.md` | Starter for your project root plan |
 | `templates/backlog.md` | Starter for your backlog index |
+| `templates/glossary.md` | Starter for your domain glossary |
 | `templates/backlog-item.md` | Starter for each B-item detail file |
-| `templates/phase.md` | Starter for each phase doc |
 | `docs/methodology.md` | Full methodology reference |
 | `examples/simple-todo-api/` | Complete example: Todo API with Cycle 0 (scaffold) and Cycle A (CRUD) |
 
 ---
 
-v1.0.0
+v2.0.0

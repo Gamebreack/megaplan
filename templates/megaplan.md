@@ -8,7 +8,7 @@
 
 [How cycles sequence — e.g., "Cycle 0 scaffolds the project; each subsequent cycle delivers one production domain."]
 
-## Phase workflow
+## Workflow
 
 document (pre) → red → green → blue → document (post) → COMPLETE
 
@@ -18,9 +18,9 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 Status: PENDING
 Scope: [scaffold, CI, data model, tooling]
 
-| Phase | Title | Status |
-|-------|-------|--------|
-| 0-P1  |       | pending |
+| B-item | Title | Status |
+|--------|-------|--------|
+| 0-B1   |       | pending |
 
 ## Errata
 

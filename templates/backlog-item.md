@@ -5,9 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Status | pending |
-| Priority | P0/P1/P2/P3 |
 | Owner | — |
-| Phase | [Phase doc](../phases/<phase>.md) |
 | Depends on | — |
 | Target | — |
 | Last updated | YYYY-MM-DD |
@@ -53,11 +51,10 @@
 
 ## Traceability
 
-- Phase: [link]
 - Glossary: [link]
 - ADR: [link or —]
 - Related items: [IDs or —]
 
 ## Notes
 
-[Free-form context, hardening concerns, migration notes]
+[Free-form context, hardening concerns, migration notes, known drift]

@@ -15,8 +15,7 @@ docs/megaplan/
 ├── backlog.md              # status index across all items
 ├── adr/
 │   └── ADR-001.md          # ORM choice (Prisma)
-├── backlog-items/          # one file per backlog item
-└── phases/                 # one file per phase
+└── backlog-items/          # one file per backlog item
 ```
 
 ## Statuses demonstrated
@@ -29,6 +28,5 @@ docs/megaplan/
 | `blocked` | `A-B3` |
 | `superseded` | `0-B3` |
 | `pending` | not shown — same shape as `ready` minus the "unblocked" confirmation |
-| `external` | not shown — same shape as `blocked` with a different team owner |
 
 The full status vocabulary is defined in [`docs/methodology.md`](../../docs/methodology.md) (and mirrored in [`docs/megaplan/backlog.md`](docs/megaplan/backlog.md)).

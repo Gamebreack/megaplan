@@ -7,7 +7,6 @@
 | Status | in-progress |
 | Priority | P0 |
 | Owner | team |
-| Phase | [A-P1](../phases/A-P1.md) |
 | Depends on | 0-B2 |
 | Target | 2026-05-07 |
 | Last updated | 2026-05-03 |
@@ -60,10 +59,9 @@ Users can create, read, update, and delete todo items via REST API endpoints.
 
 ## Traceability
 
-- Phase: [A-P1](../phases/A-P1.md)
 - ADR: —
 - Related items: [0-B2](0-B2.md), [A-B2](A-B2.md)
 
 ## Notes
 
-Currently implementing. Red phase complete (tests written). Green phase in progress.
+Currently implementing. Red step complete (tests written). Green step in progress.

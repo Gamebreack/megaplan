@@ -1,4 +1,4 @@
-<!-- megaplan v1.0.0 -->
+<!-- megaplan v2.0.0 -->
 # Megaplan — Methodology Reference
 
 Full reference for the Megaplan plan-tracking system. See `AGENTS.md` for the condensed agent-facing version and `README.md` for the quick start.
@@ -10,7 +10,7 @@ Full reference for the Megaplan plan-tracking system. See `AGENTS.md` for the co
 Megaplan is a **plan-tracking system** designed to give an AI agent the full context it needs to deliver software incrementally, safely, and traceably — without losing coherence across sessions.
 
 It combines three things:
-1. **A roadmap** — Cycles (major milestones) broken into Phases (focused work streams)
+1. **A roadmap** — Cycles (major milestones) broken into sequenced B-items
 2. **A backlog** — Every deliverable as a detail file with scope, tests, acceptance criteria, and traceability
 3. **A workflow** — A mandatory sequence: document → red → green → blue → document → complete
 
@@ -34,7 +34,7 @@ Capture the understanding as a Megaplan structure:
 - `megaplan.md` — project vision and cycle index
 - `backlog.md` — backlog index with status tracking
 - `backlog-items/<ID>.md` — one per B-item (see [B-item granularity](#backlog-item-b-item))
-- `phases/<CYCLE>-P<N>.md` — phase workflow docs
+- `glossary.md` — canonical domain glossary
 - ADRs at `adr/ADR-NNN.md` — when warranted (see [ADR discipline](#adr-discipline))
 
 Output: a complete, actionable backlog. No code until all three behaviors are done.
@@ -55,8 +55,6 @@ docs/megaplan/
 ├── backlog-items/           # one file per B-item, from templates/backlog-item.md
 │   ├── A-B1.md
 │   └── ...
-├── phases/                  # one file per phase, from templates/phase.md
-│   └── A-P1.md
 ├── adr/                     # architecture decision records
 │   └── ADR-001.md
 └── cycles/                  # optional scoping docs for longer cycles
@@ -76,20 +74,11 @@ A **Cycle** is a major delivery milestone. Typically:
 - **Cycle C+** — Subsequent expansions, dashboards, integrations
 
 Cycles gate each other: Cycle B never starts until Cycle A exit criteria are met.
-
-### Phase
-
-A **Phase** is a focused work stream within a cycle. Phases are sequenced: later phases depend on earlier ones completing first.
-
-Each phase has a **Phase document** (`phases/<CYCLE>-P<N>.md`) tracking the workflow checklist.
-
-Name phases after their business outcome, not their technical method:
-- `A-P1: Schema and migrations` not `A-P1: Database setup`
-- `B-P2: Contract CRUD` not `B-P2: Backend routes`
+B-items within a cycle are sequenced by dependency (B1 before B2 before B3).
 
 ### Backlog item (B-item)
 
-A **Backlog item** is a single deliverable. It maps to one phase (usually), has an ID (`<CYCLE>-B<N>`), and lives in its own file under `backlog-items/`.
+A **Backlog item** is a single deliverable. It has an ID (`<CYCLE>-B<N>`) and lives in its own file under `backlog-items/`.
 
 A B-item is the unit of work the agent picks up and delivers. Each one contains:
 - Business outcome (one sentence — who benefits)
@@ -97,7 +86,7 @@ A B-item is the unit of work the agent picks up and delivers. Each one contains:
 - Dependencies and blockers
 - Test plan (which files, which levels)
 - Acceptance criteria (done checklist)
-- Traceability (links to phase, ADRs, related items)
+- Traceability (links to glossary, ADRs, related items)
 
 ### B-item granularity
 
@@ -114,6 +103,8 @@ A B-item must be **atomic** — one focused behavior an agent can deliver in a s
 
 Decompose until each B-item answers: "what single behavior does this deliver?"
 
+**Task decomposition:** Inside a B-item, tasks should be ~2–5 minutes of work each. Small enough to avoid hallucination, large enough to be meaningful.
+
 ---
 
 ## The workflow (mandatory, no exceptions)
@@ -126,41 +117,44 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 
 | Step | What happens |
 |---|---|
-| **document (pre)** | Write/update all relevant docs (ADRs, architecture, phase file). No code until intent is documented. |
+| **document (pre)** | Write/update all relevant docs (glossary, ADRs). No code until intent is documented. |
 | **red** | Write failing tests that describe the desired behavior. Run the test suite — it must fail. |
 | **green** | Write the minimum production code to pass all tests. Nothing extra. Run tests — they must pass. |
 | **blue** | Refactor without adding features or breaking tests. Run tests — must still pass. |
-| **document (post)** | Update all docs to reflect exactly what was built (not what was planned). |
+| **document (post)** | Update all docs (including glossary) to reflect exactly what was built (not what was planned). |
 | **COMPLETE** | Mark done in both `backlog.md` (index row) and the item detail file. Do both in the same commit. |
 
 **This sequence is non-negotiable.** The agent should refuse to write production code without a failing test, and refuse to close an item without updating both status locations.
 
+**The Red step is the first to slip.** No `green:` commit without a prior `red:` commit in the same branch. The agent must verify: were failing tests written and confirmed failing before production code?
+
 ---
 
-## Backlog status vocabulary
+## Status vocabulary
 
 | Status | Meaning |
 |---|---|
-| `pending` | Defined, not started, no blocker identified |
-| `ready` | Defined, unblocked, ready to pick up |
+| `pending` | Defined, not started |
 | `in-progress` | Actively being worked on |
-| `blocked` | Hard dependency unresolved |
-| `external` | Owned by another team; waiting on their delivery |
 | `done` | Delivered; code and docs in place |
 | `superseded` | Was delivered but later replaced; kept for traceability |
 
+**Drift:** When an item is `done` but has known issues (e.g., "cron name doesn't match the migration"), document the drift in the item's Notes section. Don't leave it `in-progress` — mark it `done` and list the drift explicitly.
+
 **Every status transition must update both the index row in `backlog.md` and the detail file in the same commit.** Drift between the two is a documentation bug.
+
+**Every status transition updates both `backlog.md` AND the detail file in the same commit.**
 
 ---
 
-## Priority levels
+## Bugs
 
-| Level | Meaning |
-|---|---|
-| P0 | Critical; blocks other phases or is the core deliverable of the cycle |
-| P1 | High; important stakeholder value |
-| P2 | Medium; hardening or polish |
-| P3 | Low; deferred until resources allow |
+Bug fixes spawned from completed B-items use the convention `<CYCLE>-B<N>.B<M>`:
+- `<N>` = parent B-item number
+- `<M>` = sequential bug number within that item
+- Example: first bug found in A-B2 → `A-B2.B1`
+
+Track bugs inline under the parent B-item. Include: severity, file, symptom, cause, fix, verification, status. For substantial bugs, create a separate B-item.
 
 ---
 
@@ -172,10 +166,10 @@ The `templates/` directory contains ready-to-copy starter files for each documen
 |----------|---------|
 | `templates/megaplan.md` | `docs/megaplan/megaplan.md` |
 | `templates/backlog.md` | `docs/megaplan/backlog.md` |
+| `templates/glossary.md` | `docs/megaplan/glossary.md` |
 | `templates/backlog-item.md` | `docs/megaplan/backlog-items/<ID>.md` |
-| `templates/phase.md` | `docs/megaplan/phases/<CYCLE>-P<N>.md` |
 
-For a worked example showing all four templates filled in across two cycles, see [`examples/simple-todo-api/`](../examples/simple-todo-api/).
+For a worked example showing all templates filled in across two cycles, see [`examples/simple-todo-api/`](../examples/simple-todo-api/).
 
 ---
 
@@ -189,7 +183,7 @@ When a cycle establishes a reusable pattern, document it as canonical. Subsequen
 - **Pagination**: cursor vs. offset, page size conventions
 - **Error boundaries**: where validation happens, what errors surface to the caller
 
-Document the canonical pattern in the phase that establishes it. Reference it in subsequent phases.
+Document the canonical pattern in the cycle that establishes it. Reference it in subsequent cycles.
 
 ---
 
@@ -197,7 +191,7 @@ Document the canonical pattern in the phase that establishes it. Reference it in
 
 ### Glossary (mandatory)
 
-Every Megaplan project maintains `docs/megaplan/glossary.md` — the canonical glossary of domain terms. It is the single source of truth for ubiquitous language across all Cycles, Phases, and B-items.
+Every Megaplan project maintains `docs/megaplan/glossary.md` — the canonical glossary of domain terms. It is the single source of truth for ubiquitous language across all Cycles and B-items.
 
 **Purpose:**
 - Prevents terminology drift between Cycles — the same word means the same thing in Cycle B as it did in Cycle A
@@ -212,7 +206,7 @@ The glossary is created during Cycle 0's `document (pre)` step and updated inlin
 
 When scoping a new Cycle or B-item that introduces or uses a domain concept, apply this protocol:
 
-1. **Challenge against the glossary** — When a term is used in a new B-item or phase, check `glossary.md`. If it conflicts with the established definition, call it out: "Your glossary defines 'cancellation' as X, but this B-item seems to mean Y — which is it?"
+1. **Challenge against the glossary** — When a term is used in a new B-item, check `glossary.md`. If it conflicts with the established definition, call it out: "Your glossary defines 'cancellation' as X, but this B-item seems to mean Y — which is it?"
 
 2. **Sharpen fuzzy language** — When vague or overloaded terms appear, propose a precise canonical term. "You say 'account' — do you mean Customer or User? Those are different things in this project."
 
@@ -247,5 +241,8 @@ If any condition is missing, skip the ADR. Store ADRs at `docs/megaplan/adr/ADR-
 | Closing an item without updating docs | Next agent session has accurate code but stale documentation |
 | Skipping the `document (pre)` step | Agent writes code first and retrofits docs, which drift from reality |
 | Creating a B-item without a detail file | Agent has no scope, test plan, or acceptance criteria to work from |
+| B-item is too large (e.g., "CRUD for 8 tables") | Agent loses focus; split into atomic items before starting |
+| Marking `done` without documenting known drift | Use the drift convention — don't pretend it's perfect |
 | Using `superseded` to hide decisions | Always keep superseded items — they explain why things changed |
 | Speculating future scope into the backlog | Adds noise; scope cycles when they start, not earlier |
+| Deploying without AGENTS.md at project root | Methodology has no teeth across sessions |

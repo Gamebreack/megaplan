@@ -7,7 +7,6 @@
 | Status | blocked |
 | Priority | P1 |
 | Owner | team |
-| Phase | [A-P1](../phases/A-P1.md) |
 | Depends on | A-B1 |
 | Target | — |
 | Last updated | 2026-05-05 |
@@ -60,7 +59,6 @@ Each todo is owned by a user; users can sign up, sign in, and only see their own
 
 ## Traceability
 
-- Phase: [A-P1](../phases/A-P1.md)
 - ADR: pending — auth provider decision
 - Related items: [A-B1](A-B1.md)
 
