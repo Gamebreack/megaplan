@@ -91,6 +91,8 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 | `done` | Delivered; code and docs in place |
 | `superseded` | Was delivered but later replaced |
 
+*Note: Projects can extend this vocabulary with additional statuses if needed (e.g. `ready`, `blocked`, `external`).*
+
 **Drift:** When an item is `done` but has known issues, document the drift in the item's Notes section. Don't leave it `in-progress` — mark it `done` and list the drift explicitly.
 
 **Every status transition updates both `backlog.md` AND the detail file in the same commit.**

@@ -124,13 +124,13 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 | **document (post)** | Update all docs (including glossary) to reflect exactly what was built (not what was planned). |
 | **COMPLETE** | Mark done in both `backlog.md` (index row) and the item detail file. Do both in the same commit. |
 
-**This sequence is the default standard.** The agent should refuse to write production code without a failing test, and refuse to close an item without updating both status locations.
+**This sequence is the default standard.** The agent should refuse to write production code without a failing test, and refuse to close an item without updating both status locations. Use a 'Workflow Step' field in the item's metadata table to declare the current step (e.g., red, green) during pauses or handovers.
 
 **The Red step is the first to slip.** No `green:` commit without a prior `red:` commit in the same branch. The agent must verify: were failing tests written and confirmed failing before production code?
 
 ### Security & Exceptions
 * **Sandbox Rule:** All execution/verification/test commands MUST run inside an isolated sandbox environment to prevent host system damage.
-* **Configuration/Scaffolding Exception:** Items specifying `Verification: manual` or `Verification: CI` in their metadata can bypass the strict Red/Green workflow in favor of execution validation (running logs/verification commands to confirm success).
+* **Configuration/Scaffolding Exception:** Items specifying `Verification: manual` or `Verification: CI` in their metadata can bypass the strict Red/Green workflow in favor of execution validation (running logs/verification commands to confirm success). For configuration/scaffolding exceptions where TDD is bypassed, manual validation steps, commands, and outputs must be documented in the item's 'Notes' section before completion.
 
 ---
 
@@ -142,6 +142,9 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 | `in-progress` | Actively being worked on |
 | `done` | Delivered; code and docs in place |
 | `superseded` | Was delivered but later replaced; kept for traceability |
+
+> [!NOTE]
+> Projects can extend this core vocabulary with additional statuses if needed (e.g., `ready` for unblocked items ready to pick up, `blocked` for items waiting on dependencies, or `external` for external team dependencies), as demonstrated in the example project backlog.
 
 **Drift:** When an item is `done` but has known issues (e.g., "cron name doesn't match the migration"), document the drift in the item's Notes section. Don't leave it `in-progress` — mark it `done` and list the drift explicitly.
 
@@ -159,6 +162,8 @@ Bug fixes spawned from completed B-items use the convention `<CYCLE>-B<N>.B<M>`:
 - Example: first bug found in A-B2 → `A-B2.B1`
 
 Track bugs inline under the parent B-item. Include: severity, file, symptom, cause, fix, verification, status. For substantial bugs, create a separate B-item.
+
+Once a cycle is closed, any new bugs found must be tracked as new B-items in the active cycle (referencing the parent ID for pedigree) rather than reopening the original B-item (which violates cycle gating).
 
 ---
 

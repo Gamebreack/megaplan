@@ -8,6 +8,8 @@
 | Status | proposed / accepted / rejected / deprecated |
 | Owner | — |
 | Deciders | — |
+| Supersedes | — |
+| Superseded by | — |
 
 ## Context
 

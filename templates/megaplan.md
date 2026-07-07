@@ -15,12 +15,11 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 ## Cycles
 
 ### Cycle 0 — Scaffold
-Status: pending
-Scope: [scaffold, CI, data model, tooling]
-
-| B-item | Title | Status |
-|--------|-------|--------|
-| 0-B1   |       | pending |
+- **Status**: pending
+- **Objectives**:
+  - [Define cycle objectives — e.g. scaffold project structure, CI pipeline, data model, tooling]
+- **Exit Criteria**:
+  - [Define exit criteria — e.g. build passes, test suite runs in sandbox, CI config is valid]
 
 ## Errata
 

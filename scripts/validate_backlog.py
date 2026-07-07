@@ -4,7 +4,7 @@ import sys
 import re
 
 def parse_id_parts(item_id):
-    match = re.match(r"^([a-zA-Z0-9]+)-B([0-9]+)", item_id)
+    match = re.match(r"^([a-zA-Z0-9]+)-B([0-9]+)(?:\.B[0-9]+)?$", item_id)
     if match:
         cycle = match.group(1)
         num = int(match.group(2))
@@ -12,10 +12,13 @@ def parse_id_parts(item_id):
     return None, None
 
 def cycle_key(cycle_name):
-    if cycle_name.isdigit():
-        return (0, int(cycle_name))
-    else:
-        return (1, cycle_name.upper())
+    parts = []
+    for idx, part in enumerate(re.split(r'(\d+)', cycle_name)):
+        if idx % 2 == 0:
+            parts.append(part.upper())
+        else:
+            parts.append(int(part))
+    return tuple(parts)
 
 def parse_backlog_index(backlog_path):
     if not os.path.exists(backlog_path):
@@ -52,10 +55,64 @@ def parse_backlog_index(backlog_path):
                     for i, head in enumerate(headers):
                         if i < len(cells):
                             item[head] = cells[i]
-                    if 'id' in item and item['id'] and not item['id'].lower().startswith('id'):
-                        item['id'] = re.sub(r'[*_`]', '', item['id']).strip()
+                    if 'id' in item and item['id']:
+                        clean_id = re.sub(r'[*_`]', '', item['id']).strip()
+                        # Extract ID from markdown link if present
+                        link_match = re.match(r"^\[([^\]]+)\]\(([^\)]+)\)$", clean_id)
+                        if link_match:
+                            clean_id = link_match.group(1).strip()
+                            
+                        # Ignore placeholder or empty lines
+                        if clean_id in ['', '—', '-']:
+                            continue
+                            
+                        item['id'] = clean_id
+                        if 'status' in item and item['status']:
+                            item['status'] = re.sub(r'[*_`]', '', item['status']).strip()
                         items.append(item)
+                            
+    if headers is None or 'id' not in headers or 'status' not in headers:
+        print("Error: Could not find a valid backlog table index with 'ID' and 'Status' columns.", file=sys.stderr)
+        sys.exit(1)
+        
+    if 'depends on' not in headers:
+        print("Warning: 'Depends on' column is missing from backlog table index. Dependency validation will be skipped.", file=sys.stderr)
+        
     return items
+
+def parse_markdown_section(content, section_name):
+    """
+    Extracts the content of a markdown section by name.
+    """
+    lines = content.split('\n')
+    section_lines = []
+    in_section = False
+    in_code_block = False
+    section_level = None
+    
+    for line in lines:
+        if line.strip().startswith('```'):
+            in_code_block = not in_code_block
+            
+        if not in_code_block:
+            match = re.match(r"^(#+)\s+(.+)$", line)
+            if match:
+                level = len(match.group(1))
+                name = match.group(2).strip()
+                name_clean = re.sub(r'[*_`]', '', name).strip().lower()
+                if name_clean == section_name.lower():
+                    in_section = True
+                    section_level = level
+                    continue
+                elif in_section and level <= section_level:
+                    break
+                    
+        if in_section:
+            section_lines.append(line)
+            
+    if in_section:
+        return '\n'.join(section_lines).strip()
+    return ""
 
 def parse_detail_status(detail_path):
     if not os.path.exists(detail_path):
@@ -63,18 +120,17 @@ def parse_detail_status(detail_path):
     with open(detail_path, "r", encoding="utf-8") as f:
         content = f.read()
     
-    match = re.search(r"##\s+Metadata\s*\n(.*?)(?=\n##|$)", content, re.DOTALL | re.IGNORECASE)
-    if not match:
+    metadata_table = parse_markdown_section(content, "Metadata")
+    if not metadata_table:
         return None
     
-    metadata_table = match.group(1).strip()
     for line in metadata_table.split('\n'):
         line_str = line.strip()
         if line_str.startswith('|'):
             cells = [c.strip() for c in line_str.split('|')[1:-1]]
             if len(cells) >= 2:
-                field = cells[0].strip().lower()
-                value = cells[1].strip()
+                field = re.sub(r'[*_`]', '', cells[0]).strip().lower()
+                value = re.sub(r'[*_`]', '', cells[1]).strip()
                 if field == 'field' or re.match(r"^:-*-*|-*-*:-*|-*-*$", field):
                     continue
                 if field == 'status':
@@ -93,13 +149,43 @@ def main():
     items = parse_backlog_index(backlog_path)
     errors = []
     
+    if not items:
+        print("Error: No backlog items found in the index table.", file=sys.stderr)
+        sys.exit(1)
+        
+    # Check for orphaned files (matching both B-item and Bug ID structures)
+    all_detail_files = []
+    if os.path.exists(backlog_items_dir):
+        for f in os.listdir(backlog_items_dir):
+            if f.endswith(".md"):
+                item_id = os.path.splitext(f)[0]
+                if re.match(r"^[a-zA-Z0-9]+-B[0-9]+(?:\.B[0-9]+)?$", item_id):
+                    all_detail_files.append(item_id)
+                    
+    indexed_ids = {item.get('id') for item in items if item.get('id')}
+    for detail_id in all_detail_files:
+        if detail_id not in indexed_ids:
+            errors.append(f"Orphaned B-item: Detail file '{detail_id}.md' exists at '{os.path.join(backlog_items_dir, detail_id + '.md')}', but is not listed in the backlog index.")
+
     cycle_items = {}
+    status_map = {item.get('id'): item.get('status', '').strip().lower() for item in items if item.get('id')}
+    ALLOWED_STATUSES = {'pending', 'ready', 'in-progress', 'blocked', 'external', 'done', 'superseded'}
     
     for item in items:
         item_id = item.get('id')
-        index_status = item.get('status', '').strip().lower()
+        index_status = item.get('status', '').strip()
+        index_status = re.sub(r'[*_`]', '', index_status).strip().lower()
         if not item_id:
             continue
+            
+        # Check ID regex format
+        if not re.match(r"^[a-zA-Z0-9]+-B[0-9]+(?:\.B[0-9]+)?$", item_id):
+            errors.append(f"Malformed B-item ID in backlog table index: '{item_id}'")
+            continue
+
+        # Check status vocabulary in index
+        if index_status not in ALLOWED_STATUSES:
+            errors.append(f"Invalid status '{index_status}' for item {item_id} in backlog index. Allowed statuses: {sorted(ALLOWED_STATUSES)}")
             
         detail_path = os.path.join(backlog_items_dir, f"{item_id}.md")
         if not os.path.exists(detail_path):
@@ -111,9 +197,36 @@ def main():
             errors.append(f"Invalid B-item: {item_id} exists at '{detail_path}', but has no valid status in its Metadata table")
             continue
             
+        # Check status vocabulary in detail file
+        if detail_status not in ALLOWED_STATUSES:
+            errors.append(f"Invalid status '{detail_status}' for item {item_id} in detail file. Allowed statuses: {sorted(ALLOWED_STATUSES)}")
+            
         if index_status != detail_status:
             errors.append(f"Status mismatch for {item_id}: index has '{index_status}', detail has '{detail_status}'")
             
+        # Parse and check dependencies from index table if 'Depends on' column is present
+        depends_on_raw = item.get('depends on', '').strip()
+        dependencies = []
+        if depends_on_raw and depends_on_raw not in ['—', '-', '']:
+            for part in re.split(r'[,;]+', depends_on_raw):
+                clean_part = re.sub(r'[*_`]', '', part).strip()
+                link_match = re.match(r"^\[([^\]]+)\]\(([^\)]+)\)$", clean_part)
+                if link_match:
+                    clean_part = link_match.group(1).strip()
+                if re.match(r"^[a-zA-Z0-9]+-B[0-9]+(?:\.B[0-9]+)?$", clean_part):
+                    dependencies.append(clean_part)
+                else:
+                    errors.append(f"Dependency error for {item_id}: Malformed dependency ID '{clean_part}' listed.")
+                    
+        if index_status in ['in-progress', 'done']:
+            for dep in dependencies:
+                dep_status = status_map.get(dep)
+                if dep_status is None:
+                    if re.match(r"^[a-zA-Z0-9]+-B[0-9]+(?:\.B[0-9]+)?$", dep):
+                        errors.append(f"Dependency error for {item_id}: depends on '{dep}', which is not defined in the backlog index.")
+                elif dep_status not in ['done', 'superseded']:
+                    errors.append(f"Dependency violation: Item {item_id} is '{index_status}', but its dependency '{dep}' is '{dep_status}' (must be 'done' or 'superseded').")
+
         # Keep track of status for cycle gating
         cycle, _ = parse_id_parts(item_id)
         if cycle:

@@ -4,7 +4,9 @@
 
 | Field | Value |
 |-------|-------|
+| ID | — |
 | Status | pending |
+| Workflow Step | — |
 | Owner | — |
 | Verification | TDD |
 | Depends on | — |
@@ -32,8 +34,8 @@
 
 | Level | File | Intent |
 |-------|------|--------|
-| Unit | `src/lib/foo.test.ts` | happy path + edge cases |
-| E2E | `tests/e2e/foo.spec.ts` | full user journey |
+| Unit | `src/path/to/file.test.ext` | happy path + edge cases |
+| E2E | `tests/path/to/file.spec.ext` | full user journey |
 
 ## Verification & Acceptance Criteria
 
