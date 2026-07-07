@@ -5,6 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Status | in-progress |
+| Workflow Step | green |
 | Priority | P0 |
 | Owner | team |
 | Depends on | 0-B2 |

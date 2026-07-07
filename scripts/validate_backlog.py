@@ -114,16 +114,17 @@ def parse_markdown_section(content, section_name):
         return '\n'.join(section_lines).strip()
     return ""
 
-def parse_detail_status(detail_path):
+def parse_detail_metadata(detail_path):
     if not os.path.exists(detail_path):
-        return None
+        return {}
     with open(detail_path, "r", encoding="utf-8") as f:
         content = f.read()
     
     metadata_table = parse_markdown_section(content, "Metadata")
     if not metadata_table:
-        return None
+        return {}
     
+    result = {}
     for line in metadata_table.split('\n'):
         line_str = line.strip()
         if line_str.startswith('|'):
@@ -133,9 +134,13 @@ def parse_detail_status(detail_path):
                 value = re.sub(r'[*_`]', '', cells[1]).strip()
                 if field == 'field' or re.match(r"^:-*-*|-*-*:-*|-*-*$", field):
                     continue
-                if field == 'status':
-                    return value.lower()
-    return None
+                result[field] = value.lower()
+    return result
+
+
+def parse_detail_status(detail_path):
+    metadata = parse_detail_metadata(detail_path)
+    return metadata.get('status')
 
 def main():
     project_root = sys.argv[1] if len(sys.argv) > 1 else "."
@@ -226,6 +231,27 @@ def main():
                         errors.append(f"Dependency error for {item_id}: depends on '{dep}', which is not defined in the backlog index.")
                 elif dep_status not in ['done', 'superseded']:
                     errors.append(f"Dependency violation: Item {item_id} is '{index_status}', but its dependency '{dep}' is '{dep_status}' (must be 'done' or 'superseded').")
+
+        # Validate workflow step field (Karpathy Layer enforcement)
+        ALLOWED_WORKFLOW_STEPS = {'document-pre', 'document (pre)', 'red', 'green', 'blue', 'document-post', 'document (post)', 'complete'}
+        workflow_step = item.get('workflow step')
+        if workflow_step:
+            clean_step = re.sub(r'[*_`]', '', workflow_step).strip().lower()
+            if clean_step not in ('', '—', '-') and clean_step not in ALLOWED_WORKFLOW_STEPS:
+                errors.append(f"Invalid Workflow Step '{workflow_step}' for item {item_id}. Allowed: {sorted(ALLOWED_WORKFLOW_STEPS)}")
+
+        if index_status == 'in-progress':
+            detail_metadata = parse_detail_metadata(detail_path)
+            detail_workflow = detail_metadata.get('workflow step', '')
+            if detail_workflow in ('', '—', '-'):
+                errors.append(f"Workflow Step missing: Item {item_id} is in-progress but has no Workflow Step set in its detail file metadata")
+
+            spec_path = os.path.join(project_root, "SPEC.md")
+            if os.path.exists(spec_path):
+                spec_mtime = os.path.getmtime(spec_path)
+                detail_mtime = os.path.getmtime(detail_path)
+                if detail_mtime > spec_mtime:
+                    errors.append(f"SPEC.md is stale: {item_id} was modified after SPEC.md was compiled. Re-run compile_spec.py")
 
         # Keep track of status for cycle gating
         cycle, _ = parse_id_parts(item_id)

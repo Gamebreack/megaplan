@@ -39,11 +39,13 @@
 
 ## Verification & Acceptance Criteria
 
+- [ ] `python scripts/verify_workflow.py check` gate passes at each step transition
 - [ ] `npm test` / Verification command passes
 - [ ] `npm run lint` / Lint command has no new warnings
 - [ ] `npm run typecheck` / Typecheck command has no type errors
 - [ ] Documentation updated (if applicable)
 - [ ] Status set to `done` in both `backlog.md` and this file (same commit)
+- [ ] `SPEC.md` compiled and current (`python scripts/compile_spec.py <this_file>`)
 
 ## Traceability
 

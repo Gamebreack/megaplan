@@ -130,17 +130,30 @@ Copy these into `docs/megaplan/` in your project:
 
 - `docs/methodology.md` — Full methodology reference
 
+## Verification gates (mandatory)
+
+Before advancing a workflow step, run the gate script:
+  `python scripts/verify_workflow.py check <b_item_path> [--run-verifier]`
+
+| Gate | Transition | Checks |
+|------|------------|--------|
+| Layer 1 | doc → red | SPEC.md compiled and current (`compile_spec.py`) |
+| Layer 1 | red → green | Test plan populated in B-item |
+| Layer 2 | green → blue | Tests pass (`--run-verifier`) |
+| Layer 2 | blue → doc | Tests + lint pass (`--run-verifier`) |
+| Layer 3 | doc → COMPLETE | Backlog + glossary updated, dual-update verified |
+
+Install pre-commit hooks: `python scripts/setup_hooks.py`
+See `docs/methodology.md` for the full 3-Layer reference.
+
 ## Anti-patterns
 
-| Anti-pattern | Why it breaks the system |
-|--------------|--------------------------|
-| Writing code before a failing test | No red means no confidence the test is testing anything |
-| Updating `backlog.md` without the detail file | Index and detail go out of sync |
-| Skipping the `document (pre)` step | Agent writes code first, docs drift from reality |
-| Creating a B-item without a detail file | Agent has no scope, test plan, or acceptance criteria |
-| B-item is too large (e.g., "CRUD for 8 tables") | Agent loses focus; split into atomic items |
-| Marking `done` without documenting known drift | Use the drift convention — don't pretend it's perfect |
-| Missing AGENTS.md at project root | Methodology has no teeth across sessions |
+| Anti-pattern | Why it breaks |
+|--------------|---------------|
+| Skipping a gate | No confidence the step was actually done |
+| Writing code before failing test | No red means the test may not test anything |
+| Dual-update skipped | Index and detail go out of sync |
+| B-item too large | Agent loses focus; split until atomic |
 
 ## Quick reference
 
@@ -151,6 +164,7 @@ Copy these into `docs/megaplan/` in your project:
   2. Read source B-item and `docs/megaplan/glossary.md`
   3. Ensure dependencies are `done`
   4. Follow workflow (Red before Green unless Exception applies)
+  5. Run `verify_workflow.py check <b_item_path>` before advancing each step
 
 ---
 

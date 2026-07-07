@@ -5,6 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Status | ready |
+| Workflow Step | document-pre |
 | Priority | P1 |
 | Owner | team |
 | Depends on | A-B1 |

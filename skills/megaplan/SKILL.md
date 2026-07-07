@@ -71,6 +71,8 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 | `done` | Delivered; code and docs in place |
 | `superseded` | Was delivered but later replaced |
 
+*Note: Projects can extend this vocabulary with additional statuses if needed (e.g. `ready`, `blocked`, `external`).*
+
 **Drift:** When `done` but with known issues, document the drift in Notes. Don't leave it `in-progress`.
 
 Every status transition updates both `backlog.md` AND the detail file in the same commit.
@@ -98,18 +100,66 @@ docs/megaplan/
 4. Update both `backlog.md` and the detail file on every status change.
 5. Document drift in Notes rather than leaving items in limbo.
 
+## Verification gates (mandatory)
+
+Before advancing a workflow step, run the gate script:
+  `python scripts/verify_workflow.py check <b_item_path> [--run-verifier]`
+
+| Gate | Transition | Checks |
+|------|------------|--------|
+| Layer 1 | doc → red | SPEC.md compiled and current (`compile_spec.py`) |
+| Layer 1 | red → green | Test plan populated in B-item |
+| Layer 2 | green → blue | Tests pass (`--run-verifier`) |
+| Layer 2 | blue → doc | Tests + lint pass (`--run-verifier`) |
+| Layer 3 | doc → COMPLETE | Backlog + glossary updated, dual-update verified |
+
+Install pre-commit hooks: `python scripts/setup_hooks.py`
+See `references/methodology.md` for the full 3-Layer reference.
+
 ## Anti-patterns
 
 | Anti-pattern | Why it breaks |
 |--------------|---------------|
-| Writing code before a failing test | No confidence the test tests anything |
+| Skipping a gate | No confidence the step was actually done |
+| Writing code before a failing test | No red means the test may not test anything |
 | Updating `backlog.md` without the detail file | Index and detail go out of sync |
-| Skipping the `document (pre)` step | Docs drift from reality |
 | B-item is too large (e.g., "CRUD for 8 tables") | Agent loses focus |
 | Marking `done` without documenting known drift | Pretending it's perfect |
 | Missing A.G.E.N.T.S..md at project root | Methodology has no teeth across sessions |
+
+## K.I.S.S. Mode — Anti-bloat principles
+
+### Limits (evidence-backed)
+- AGENTS.md: target 150 lines, max 200 lines
+- Any template: max 80 lines
+
+### Simplify-first principle
+- Default to omission, not addition
+- If you can't explain it in 3 sentences, it doesn't belong here
+- Link external docs instead of embedding
+
+### Lifecycle rules
+- Stale content: mark as "archived" in filename — never delete (preserves traceability)
+- Review cadence: monthly — check for contradictions, not usage
+
+### Anti-bloat checklist (before committing)
+- [ ] Does this add a new rule?
+- [ ] Could this be a link instead of embedded content?
+- [ ] Would a new agent understand this in under 30 seconds?
+- [ ] Does this increase line count? If yes, what am I removing to compensate?
 
 ## Reference
 
 Detailed methodology: [references/methodology.md](references/methodology.md)
 Templates for bootstrapping new projects: [templates/](templates/)
+
+## Quick reference
+
+* Status: `pending` | `in-progress` | `done` | `superseded`
+* Bugs: `<CYCLE>-B<N>.B<M>` (parent B-item N, sequential bug M)
+* Startup checks:
+  1. Compile to `SPEC.md` (`python scripts/compile_spec.py <path_to_b_item>`)
+  2. Read source B-item and `docs/megaplan/glossary.md`
+  3. Ensure dependencies are `done`
+  4. Follow workflow (Red before Green unless Exception applies)
+  5. Run `verify_workflow.py check <b_item_path>` before advancing each step

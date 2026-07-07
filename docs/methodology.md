@@ -260,14 +260,24 @@ If any condition is missing, skip the ADR. Store ADRs at `docs/megaplan/adr/ADR-
 
 ## Agentic Integration (Karpathy's 3-Layer Method)
 
-To optimize Megaplan for autonomous coding agents, you can integrate Karpathy's 3-Layer architecture (LLM Wiki & Agentic Stack):
+Megaplan integrates Karpathy's 3-Layer architecture for autonomous coding agents. These layers are enforced by the `verify_workflow.py` gate script.
 
-### 1. Dynamic Spec Compilation
-Before an agent starts a task, compile the active B-item detail file into a concise `SPEC.md` at the project root using `scripts/compile_spec.py`. This limits the agent's context window, preventing context rot and keeping execution focused.
+### 1. Dynamic Spec Compilation (Layer 1)
+Before an agent starts a task, compile the active B-item detail file into a concise `SPEC.md` at the project root using `scripts/compile_spec.py`. This limits the agent's context window, preventing context rot and keeping execution focused. The gate script verifies SPEC.md is compiled and current before transitioning from `document (pre)` to `red`.
 
-### 2. Multi-Stage Verifier
-Expand the Megaplan verification beyond unit tests (Stage 1: Functional verification) to include Stage 2 (Static analysis / type-checking like `mypy`, `eslint`) and Stage 3 (Documentation & relative link checks) inside the execution sandbox.
+### 2. Multi-Stage Verifier (Layer 2)
+Multi-stage verification runs inside the execution sandbox:
+- **Stage 1** — Functional tests (unit/integration). Enforced at `green → blue`.
+- **Stage 2** — Static analysis (`mypy`, `eslint`, `cargo clippy`, etc.). Enforced at `blue → document (post)`.
+- **Stage 3** — Documentation & glossary checks. Enforced at `document (post) → COMPLETE`.
 
-### 3. Automated Ingestion Loop
-During the `document (post)` step, trigger an automated ingestion agent to compile the implementation delta, update the LLM Wiki store (`docs/megaplan/wiki/`), resolve glossary changes, and lint relative links automatically.
+Run with `python scripts/verify_workflow.py check <b_item> --run-verifier`.
+
+### 3. Automated Ingestion Loop (Layer 3)
+During the `document (post)` step, verify documentation artifacts:
+- Backlog index and detail file are dual-updated
+- Glossary reflects implemented changes
+- Links between backlog items are valid
+
+Enforced by the gate script at the `document (post) → COMPLETE` transition.
 
