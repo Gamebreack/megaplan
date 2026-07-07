@@ -38,7 +38,7 @@ A major delivery milestone. Cycle 0 scaffolds the project. Cycle A delivers the 
 
 A single, atomic deliverable. One focused behavior per item. Decompose until each answers "what single behavior does this deliver?" Inside a B-item, tasks should be ~2–5 minutes each.
 
-## Workflow (no exceptions)
+## Workflow
 
 Every B-item moves through exactly this sequence:
 
@@ -55,7 +55,12 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 | **document (post)** | Update all docs to reflect what was built. |
 | **COMPLETE** | Mark done in both `backlog.md` index and detail file. |
 
-**The Red step is non-negotiable.** No green commit without a prior red commit in the same branch.
+**The Red step is the default standard for TDD-verified items.**
+
+### Security & Exceptions
+
+* **Sandbox Rule:** All execution/verification/test commands MUST run inside an isolated sandbox environment to prevent host system damage.
+* **Configuration/Scaffolding Exception:** Items specifying `Verification: manual` or `Verification: CI` in their metadata can bypass the strict Red/Green workflow in favor of execution validation (running logs/verification commands to confirm success).
 
 ## Status vocabulary
 

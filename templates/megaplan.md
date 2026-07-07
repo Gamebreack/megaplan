@@ -15,7 +15,7 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 ## Cycles
 
 ### Cycle 0 — Scaffold
-Status: PENDING
+Status: pending
 Scope: [scaffold, CI, data model, tooling]
 
 | B-item | Title | Status |

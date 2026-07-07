@@ -56,6 +56,9 @@ Write your project vision in `megaplan.md`, scope Cycle 0, and start working thr
 | `templates/backlog.md` | Starter for your backlog index |
 | `templates/glossary.md` | Starter for your domain glossary |
 | `templates/backlog-item.md` | Starter for each B-item detail file |
+| `templates/adr.md` | Starter for Architecture Decision Records (ADRs) |
+| `scripts/compile_spec.py` | Command line script to parse B-items and compile them into `SPEC.md` |
+| `scripts/validate_backlog.py` | Validator script to verify backlog integrity and prevent cycle sync drift |
 | `docs/methodology.md` | Full methodology reference |
 | `examples/simple-todo-api/` | Complete example: Todo API with Cycle 0 (scaffold) and Cycle A (CRUD) |
 

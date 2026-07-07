@@ -41,7 +41,7 @@ Output: a complete, actionable backlog. No code until all three behaviors are do
 
 ### 3. Implement
 
-Pick up B-items one at a time, following `document (pre) → red → green → blue → document (post) → COMPLETE`. See [The workflow](#the-workflow-mandatory-no-exceptions) for the full sequence.
+Pick up B-items one at a time, following `document (pre) → red → green → blue → document (post) → COMPLETE`. See [The workflow](#the-workflow) for the full sequence.
 
 ---
 
@@ -107,7 +107,7 @@ Decompose until each B-item answers: "what single behavior does this deliver?"
 
 ---
 
-## The workflow (mandatory, no exceptions)
+## The workflow
 
 Every B-item moves through exactly these steps:
 
@@ -124,9 +124,13 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 | **document (post)** | Update all docs (including glossary) to reflect exactly what was built (not what was planned). |
 | **COMPLETE** | Mark done in both `backlog.md` (index row) and the item detail file. Do both in the same commit. |
 
-**This sequence is non-negotiable.** The agent should refuse to write production code without a failing test, and refuse to close an item without updating both status locations.
+**This sequence is the default standard.** The agent should refuse to write production code without a failing test, and refuse to close an item without updating both status locations.
 
 **The Red step is the first to slip.** No `green:` commit without a prior `red:` commit in the same branch. The agent must verify: were failing tests written and confirmed failing before production code?
+
+### Security & Exceptions
+* **Sandbox Rule:** All execution/verification/test commands MUST run inside an isolated sandbox environment to prevent host system damage.
+* **Configuration/Scaffolding Exception:** Items specifying `Verification: manual` or `Verification: CI` in their metadata can bypass the strict Red/Green workflow in favor of execution validation (running logs/verification commands to confirm success).
 
 ---
 
@@ -246,3 +250,19 @@ If any condition is missing, skip the ADR. Store ADRs at `docs/megaplan/adr/ADR-
 | Using `superseded` to hide decisions | Always keep superseded items — they explain why things changed |
 | Speculating future scope into the backlog | Adds noise; scope cycles when they start, not earlier |
 | Missing AGENTS.md at project root | Methodology has no teeth across sessions |
+
+---
+
+## Agentic Integration (Karpathy's 3-Layer Method)
+
+To optimize Megaplan for autonomous coding agents, you can integrate Karpathy's 3-Layer architecture (LLM Wiki & Agentic Stack):
+
+### 1. Dynamic Spec Compilation
+Before an agent starts a task, compile the active B-item detail file into a concise `SPEC.md` at the project root using `scripts/compile_spec.py`. This limits the agent's context window, preventing context rot and keeping execution focused.
+
+### 2. Multi-Stage Verifier
+Expand the Megaplan verification beyond unit tests (Stage 1: Functional verification) to include Stage 2 (Static analysis / type-checking like `mypy`, `eslint`) and Stage 3 (Documentation & relative link checks) inside the execution sandbox.
+
+### 3. Automated Ingestion Loop
+During the `document (post)` step, trigger an automated ingestion agent to compile the implementation delta, update the LLM Wiki store (`docs/megaplan/wiki/`), resolve glossary changes, and lint relative links automatically.
+

@@ -6,6 +6,7 @@
 |-------|-------|
 | Status | pending |
 | Owner | — |
+| Verification | TDD |
 | Depends on | — |
 | Target | — |
 | Last updated | YYYY-MM-DD |
@@ -34,19 +35,12 @@
 | Unit | `src/lib/foo.test.ts` | happy path + edge cases |
 | E2E | `tests/e2e/foo.spec.ts` | full user journey |
 
-## Required checks
+## Verification & Acceptance Criteria
 
-- [ ] `npm test` — must pass (or your test command)
-- [ ] `npm run lint` — no new warnings (or your lint command)
-- [ ] `npm run typecheck` — no type errors (or your typecheck command)
-- [ ] Docs updated (if applicable)
-
-## Acceptance criteria
-
-- [ ] All tests pass
-- [ ] No new lint warnings
-- [ ] No type errors
-- [ ] Docs updated
+- [ ] `npm test` / Verification command passes
+- [ ] `npm run lint` / Lint command has no new warnings
+- [ ] `npm run typecheck` / Typecheck command has no type errors
+- [ ] Documentation updated (if applicable)
 - [ ] Status set to `done` in both `backlog.md` and this file (same commit)
 
 ## Traceability

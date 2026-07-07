@@ -58,9 +58,9 @@ One focused behavior per item — an agent should finish it in one session. Each
 **Task decomposition:** Inside a B-item, tasks should be ~2–5 minutes of work each.
 Small enough to avoid hallucination, large enough to be meaningful.
 
-## Workflow (no exceptions)
+## Workflow
 
-Every B-item moves through exactly this sequence:
+Every B-item moves through this sequence (unless exception applies):
 
 ```
 document (pre) → red → green → blue → document (post) → COMPLETE
@@ -68,18 +68,19 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 
 | Step | What happens |
 |------|--------------|
-| **document (pre)** | Write/update docs (glossary, ADRs). No code until intent is documented. |
-| **red** | Write failing tests that describe desired behavior. Tests must fail. |
-| **green** | Write minimum production code to pass all tests. Nothing extra. |
-| **blue** | Refactor without adding features or breaking tests. |
-| **document (post)** | Update all docs (including glossary) to reflect exactly what was built. |
-| **COMPLETE** | Mark done in both `backlog.md` index and detail file. |
+| **document (pre)** | Update docs (glossary, ADRs). No code until intent is documented. |
+| **red** | Write failing tests. Tests must fail. |
+| **green** | Write minimum production code to pass tests. |
+| **blue** | Refactor without adding features. |
+| **document (post)** | Update docs to reflect built solution. |
+| **COMPLETE** | Mark done in both `backlog.md` and detail file (same commit). |
 
-**Never write production code without a failing test.**
 **Never close an item without updating both status locations.**
 
-**The Red step is non-negotiable.** No `green:` commit without a prior `red:` commit
-in the same branch. This is the first step to slip — both audits confirmed it.
+### Security & Exceptions
+
+* **Sandbox Rule:** All execution/verification commands MUST run inside an isolated sandbox environment to prevent host system damage.
+* **Configuration/Scaffolding Exception:** Items specifying `Verification: manual` or `Verification: CI` in their metadata can bypass the strict Red/Green workflow in favor of execution validation (running logs/verification commands to confirm success).
 
 ## Status vocabulary
 
@@ -90,9 +91,7 @@ in the same branch. This is the first step to slip — both audits confirmed it.
 | `done` | Delivered; code and docs in place |
 | `superseded` | Was delivered but later replaced |
 
-**Drift:** When an item is `done` but has known issues (e.g., "cron name doesn't match
-the migration"), document the drift in the item's Notes section. Don't leave it
-`in-progress` — mark it `done` and list the drift explicitly.
+**Drift:** When an item is `done` but has known issues, document the drift in the item's Notes section. Don't leave it `in-progress` — mark it `done` and list the drift explicitly.
 
 **Every status transition updates both `backlog.md` AND the detail file in the same commit.**
 
@@ -143,17 +142,13 @@ Copy these into `docs/megaplan/` in your project:
 
 ## Quick reference
 
-```
-Workflow: document (pre) → red → green → blue → document (post) → COMPLETE
-Status: pending | in-progress | done | superseded
-Bugs: <CYCLE>-B<N>.B<M> (parent B-item N, sequential bug M)
-```
-
-Before starting any B-item:
-1. Read `docs/megaplan/backlog-items/<ID>.md` — create from template if missing
-2. Read `docs/megaplan/glossary.md` — use project terminology, not your own
-3. Check all dependencies are `done`
-4. Follow the workflow — Red before Green, always
+* Status: `pending` | `in-progress` | `done` | `superseded`
+* Bugs: `<CYCLE>-B<N>.B<M>` (parent B-item N, sequential bug M)
+* Startup checks:
+  1. Compile to `SPEC.md` (`python scripts/compile_spec.py <path_to_b_item>`)
+  2. Read source B-item and `docs/megaplan/glossary.md`
+  3. Ensure dependencies are `done`
+  4. Follow workflow (Red before Green unless Exception applies)
 
 ---
 
