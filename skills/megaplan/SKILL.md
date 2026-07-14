@@ -163,3 +163,6 @@ Templates for bootstrapping new projects: [templates/](templates/)
   3. Ensure dependencies are `done`
   4. Follow workflow (Red before Green unless Exception applies)
   5. Run `verify_workflow.py check <b_item_path>` before advancing each step
+
+
+<!-- megaplan v2.0.0 -->

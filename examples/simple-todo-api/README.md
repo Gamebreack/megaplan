@@ -13,6 +13,7 @@ Plus an early prototype kept for traceability: `0-B3` (superseded).
 docs/megaplan/
 ├── megaplan.md             # cycle overview
 ├── backlog.md              # status index across all items
+├── glossary.md             # canonical domain glossary
 ├── adr/
 │   └── ADR-001.md          # ORM choice (Prisma)
 └── backlog-items/          # one file per backlog item

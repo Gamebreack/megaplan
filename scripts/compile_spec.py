@@ -3,55 +3,59 @@ import os
 import re
 import sys
 
+
 def parse_markdown_section(content, section_name):
     """
     Extracts the content of a markdown section by name.
     """
-    lines = content.split('\n')
+    lines = content.split("\n")
     section_lines = []
     in_section = False
     in_code_block = False
     section_level = None
-    
+
     for line in lines:
-        if line.strip().startswith('```'):
+        if line.strip().startswith("```"):
             in_code_block = not in_code_block
-            
+
         if not in_code_block:
             match = re.match(r"^(#+)\s+(.+)$", line)
             if match:
                 level = len(match.group(1))
                 name = match.group(2).strip()
-                name_clean = re.sub(r'[*_`]', '', name).strip().lower()
-                
+                name_clean = re.sub(r"[*_`]", "", name).strip().lower()
+
                 if name_clean == section_name.lower():
                     in_section = True
                     section_level = level
                     continue
                 elif in_section and level <= section_level:
                     break
-                    
+
         if in_section:
             section_lines.append(line)
-            
+
     if in_section:
-        return '\n'.join(section_lines).strip()
+        return "\n".join(section_lines).strip()
     return ""
 
+
 def find_repo_root():
-    # Start at current script directory or cwd and go up until we find AGENTS.md or .git
-    current = os.path.abspath(os.getcwd())
+    current = os.path.dirname(os.path.abspath(__file__))
     while current != os.path.dirname(current):
-        if os.path.exists(os.path.join(current, "AGENTS.md")) or os.path.exists(os.path.join(current, ".git")):
+        if os.path.exists(os.path.join(current, "AGENTS.md")) or os.path.exists(
+            os.path.join(current, ".git")
+        ):
             return current
         current = os.path.dirname(current)
     return os.path.abspath(os.getcwd())
+
 
 def compile_spec(b_item_path, spec_output_path="SPEC.md"):
     repo_root = find_repo_root()
     allowed_dir = os.path.realpath(repo_root)
     target_path = os.path.realpath(spec_output_path)
-    
+
     # Path traversal validation for output path (resolving symlinks)
     if os.path.commonpath([allowed_dir, target_path]) != allowed_dir:
         raise ValueError("Output path must be within the workspace.")
@@ -68,7 +72,7 @@ def compile_spec(b_item_path, spec_output_path="SPEC.md"):
     target_dir = os.path.dirname(target_path)
     if target_dir:
         os.makedirs(target_dir, exist_ok=True)
-        
+
     with open(input_path, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -77,10 +81,14 @@ def compile_spec(b_item_path, spec_output_path="SPEC.md"):
     title = title_match.group(1).strip() if title_match else "Unnamed Backlog Item"
 
     # Extract standard Megaplan B-item sections
-    outcome = parse_markdown_section(content, "Business outcome") or parse_markdown_section(content, "Outcome")
+    outcome = parse_markdown_section(
+        content, "Business outcome"
+    ) or parse_markdown_section(content, "Outcome")
     scope = parse_markdown_section(content, "Scope")
     test_plan = parse_markdown_section(content, "Test plan")
-    criteria = parse_markdown_section(content, "Verification & Acceptance Criteria") or parse_markdown_section(content, "Acceptance criteria")
+    criteria = parse_markdown_section(
+        content, "Verification & Acceptance Criteria"
+    ) or parse_markdown_section(content, "Acceptance criteria")
 
     spec_content = f"""# Agent Task Specification: {title}
 
@@ -108,14 +116,15 @@ def compile_spec(b_item_path, spec_output_path="SPEC.md"):
 
     with open(target_path, "w", encoding="utf-8") as f:
         f.write(spec_content)
-    
+
     print(f"Successfully compiled '{b_item_path}' -> '{spec_output_path}'")
+
 
 def main():
     if len(sys.argv) < 2:
         print("Usage: compile_spec.py <path_to_b_item.md> [output_spec_path]")
         sys.exit(1)
-        
+
     b_item_path = sys.argv[1]
     spec_output_path = sys.argv[2] if len(sys.argv) > 2 else "SPEC.md"
     try:
@@ -123,6 +132,7 @@ def main():
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

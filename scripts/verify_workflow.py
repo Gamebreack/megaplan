@@ -2,6 +2,7 @@
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -20,10 +21,67 @@ STEP_DISPLAY = {
 def find_repo_root():
     current = os.path.abspath(os.getcwd())
     while current != os.path.dirname(current):
-        if os.path.exists(os.path.join(current, "AGENTS.md")) or os.path.exists(os.path.join(current, ".git")):
+        if os.path.exists(os.path.join(current, "AGENTS.md")) or os.path.exists(
+            os.path.join(current, ".git")
+        ):
             return current
         current = os.path.dirname(current)
     return os.path.abspath(os.getcwd())
+
+
+def command_exists(cmd):
+    first_word = cmd.split()[0]
+    return shutil.which(first_word) is not None
+
+
+def get_tool_type(cmd):
+    parts = cmd.split()
+    if not parts:
+        return None
+    first = parts[0]
+    if first == "python" and len(parts) > 2 and parts[1] == "-m":
+        return parts[2]
+    return first
+
+
+def is_project_type(tool_type, repo_root):
+    if tool_type == "npm":
+        return os.path.exists(os.path.join(repo_root, "package.json"))
+    elif tool_type == "cargo":
+        return os.path.exists(os.path.join(repo_root, "Cargo.toml"))
+    elif tool_type == "go":
+        return os.path.exists(os.path.join(repo_root, "go.mod"))
+    elif tool_type in ("pytest", "python", "ruff"):
+        for filename in [
+            "pyproject.toml",
+            "setup.py",
+            "requirements.txt",
+            "tox.ini",
+            "pytest.ini",
+        ]:
+            if os.path.exists(os.path.join(repo_root, filename)):
+                return True
+        for root, dirs, files in os.walk(repo_root):
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".") and d not in ("venv", ".venv", "env")
+            ]
+            if any(f.endswith(".py") for f in files):
+                return True
+        return False
+    elif tool_type == "eslint":
+        for filename in [
+            ".eslintrc",
+            ".eslintrc.json",
+            ".eslintrc.js",
+            "eslint.config.js",
+            "package.json",
+        ]:
+            if os.path.exists(os.path.join(repo_root, filename)):
+                return True
+        return False
+    return True
 
 
 def parse_metadata_table(content):
@@ -50,7 +108,7 @@ def parse_metadata_table(content):
             if len(cells) >= 2:
                 field = re.sub(r"[*_`]", "", cells[0]).strip().lower()
                 value = re.sub(r"[*_`]", "", cells[1]).strip()
-                if field not in ("field",) and not re.match(r"^:-*", field):
+                if field not in ("field",) and not re.match(r"^:?-+:?$", field):
                     metadata[field] = value
 
     return metadata
@@ -89,7 +147,9 @@ def extract_id(content, filepath):
     title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
     if title_match:
         title = title_match.group(1).strip()
-        id_match = re.match(r"^([a-zA-Z0-9]+-B[0-9]+(?:\.B[0-9]+)?)", re.sub(r"[*_`]", "", title))
+        id_match = re.match(
+            r"^([a-zA-Z0-9]+-B[0-9]+(?:\.B[0-9]+)?)", re.sub(r"[*_`]", "", title)
+        )
         if id_match:
             return id_match.group(1)
     return os.path.splitext(os.path.basename(filepath))[0]
@@ -140,6 +200,20 @@ def check_layer1_spec(b_item_path, repo_root):
         )
         return errors
 
+    try:
+        with open(spec_path, "r", encoding="utf-8") as f:
+            spec_content = f.read()
+        expected_source = os.path.basename(b_item_path)
+        if expected_source not in spec_content:
+            errors.append(
+                f"Layer 1 FAIL: SPEC.md does not correspond to the current B-item '{expected_source}'. "
+                "Re-run: python scripts/compile_spec.py " + b_item_path
+            )
+            return errors
+    except Exception as e:
+        errors.append(f"Layer 1 FAIL: Could not read SPEC.md: {e}")
+        return errors
+
     spec_mtime = os.path.getmtime(spec_path)
     item_mtime = os.path.getmtime(b_item_path)
 
@@ -157,28 +231,49 @@ def check_layer2_verifier(repo_root, skip_stages=None):
     skip_stages = skip_stages or []
 
     if "test" not in skip_stages:
-        for cmd in ["npm test", "pytest", "cargo test", "go test ./...", "python -m pytest"]:
+        for cmd in [
+            "npm test",
+            "pytest",
+            "cargo test",
+            "go test ./...",
+            "python -m pytest",
+        ]:
+            tool_type = get_tool_type(cmd)
+            if tool_type and not is_project_type(tool_type, repo_root):
+                continue
+            if not command_exists(cmd):
+                continue
             success, stdout, stderr = run_command(cmd, cwd=repo_root)
             if success:
                 break
-            if "not found" not in stderr.lower() and "no such file" not in stderr.lower():
+            else:
                 errors.append(f"Layer 2 Stage 1 FAIL: Tests failed ({cmd})")
                 break
 
     if "lint" not in skip_stages:
         for cmd in ["npm run lint", "ruff check .", "eslint .", "cargo clippy"]:
+            tool_type = get_tool_type(cmd)
+            if tool_type and not is_project_type(tool_type, repo_root):
+                continue
+            if not command_exists(cmd):
+                continue
             success, stdout, stderr = run_command(cmd, cwd=repo_root)
             if success:
                 break
-            if "not found" not in stderr.lower() and "no such file" not in stderr.lower():
-                errors.append(f"Layer 2 Stage 2 FAIL: Lint/static analysis failed ({cmd})")
+            else:
+                errors.append(
+                    f"Layer 2 Stage 2 FAIL: Lint/static analysis failed ({cmd})"
+                )
                 break
 
     if "docs" not in skip_stages:
         glossary_path = os.path.join(repo_root, "docs", "megaplan", "glossary.md")
-        if not os.path.exists(glossary_path):
+        glossary_map_path = os.path.join(
+            repo_root, "docs", "megaplan", "glossary-map.md"
+        )
+        if not os.path.exists(glossary_path) and not os.path.exists(glossary_map_path):
             errors.append(
-                "Layer 2 Stage 3 FAIL: docs/megaplan/glossary.md not found"
+                "Layer 2 Stage 3 FAIL: Neither docs/megaplan/glossary.md nor docs/megaplan/glossary-map.md was found"
             )
 
     return errors
@@ -192,8 +287,11 @@ def check_layer3_ingestion(repo_root, b_item_path):
         errors.append("Layer 3 FAIL: docs/megaplan/backlog.md not found")
 
     glossary_path = os.path.join(repo_root, "docs", "megaplan", "glossary.md")
-    if not os.path.exists(glossary_path):
-        errors.append("Layer 3 FAIL: docs/megaplan/glossary.md not found")
+    glossary_map_path = os.path.join(repo_root, "docs", "megaplan", "glossary-map.md")
+    if not os.path.exists(glossary_path) and not os.path.exists(glossary_map_path):
+        errors.append(
+            "Layer 3 FAIL: Neither docs/megaplan/glossary.md nor docs/megaplan/glossary-map.md was found"
+        )
 
     item_id = None
     if os.path.exists(b_item_path):
@@ -203,7 +301,7 @@ def check_layer3_ingestion(repo_root, b_item_path):
     if item_id and os.path.exists(backlog_path):
         with open(backlog_path, "r", encoding="utf-8") as f:
             backlog_content = f.read()
-        if item_id not in backlog_content:
+        if not re.search(r"\b" + re.escape(item_id) + r"\b", backlog_content):
             errors.append(
                 f"Layer 3 FAIL: B-item {item_id} not found in backlog.md (dual-update violation)"
             )
@@ -227,7 +325,9 @@ def check_step_gate(current_step, b_item_path, repo_root, run_verifier=False):
 
     elif current_step == "green":
         if run_verifier:
-            verifier_errors = check_layer2_verifier(repo_root, skip_stages=["lint", "docs"])
+            verifier_errors = check_layer2_verifier(
+                repo_root, skip_stages=["lint", "docs"]
+            )
             errors.extend(verifier_errors)
 
     elif current_step == "blue":
@@ -261,30 +361,50 @@ def cmd_check(args):
     current_step = get_workflow_step(metadata)
 
     if current_step is None:
-        print("Error: Workflow Step field is missing or empty in B-item metadata.", file=sys.stderr)
-        print("Add '| Workflow Step | <step> |' to the Metadata table.", file=sys.stderr)
-        print(f"Valid steps: {', '.join(STEP_DISPLAY[s] for s in WORKFLOW_STEPS)}", file=sys.stderr)
+        print(
+            "Error: Workflow Step field is missing or empty in B-item metadata.",
+            file=sys.stderr,
+        )
+        print(
+            "Add '| Workflow Step | <step> |' to the Metadata table.", file=sys.stderr
+        )
+        print(
+            f"Valid steps: {', '.join(STEP_DISPLAY[s] for s in WORKFLOW_STEPS)}",
+            file=sys.stderr,
+        )
         return 1
 
     if current_step not in WORKFLOW_STEPS:
         print(f"Error: Invalid Workflow Step '{current_step}'.", file=sys.stderr)
-        print(f"Valid steps: {', '.join(STEP_DISPLAY[s] for s in WORKFLOW_STEPS)}", file=sys.stderr)
+        print(
+            f"Valid steps: {', '.join(STEP_DISPLAY[s] for s in WORKFLOW_STEPS)}",
+            file=sys.stderr,
+        )
         return 1
 
     next_step = get_next_step(current_step)
     if next_step is None:
-        print(f"Item is at final step ({STEP_DISPLAY[current_step]}). Ready to mark COMPLETE.")
+        print(
+            f"Item is at final step ({STEP_DISPLAY[current_step]}). Ready to mark COMPLETE."
+        )
         return 0
 
-    gate_errors = check_step_gate(current_step, b_item_path, repo_root, args.run_verifier)
+    gate_errors = check_step_gate(
+        current_step, b_item_path, repo_root, args.run_verifier
+    )
 
     if gate_errors:
-        print(f"GATE BLOCKED — Cannot advance from '{STEP_DISPLAY[current_step]}' to '{STEP_DISPLAY[next_step]}':", file=sys.stderr)
+        print(
+            f"GATE BLOCKED — Cannot advance from '{STEP_DISPLAY[current_step]}' to '{STEP_DISPLAY[next_step]}':",
+            file=sys.stderr,
+        )
         for err in gate_errors:
             print(f"  - {err}", file=sys.stderr)
         return 1
 
-    print(f"GATE PASSED — Safe to advance from '{STEP_DISPLAY[current_step]}' to '{STEP_DISPLAY[next_step]}'.")
+    print(
+        f"GATE PASSED — Safe to advance from '{STEP_DISPLAY[current_step]}' to '{STEP_DISPLAY[next_step]}'."
+    )
     return 0
 
 
@@ -309,7 +429,9 @@ def cmd_status(args):
     print(f"B-item: {item_id}")
     print(f"Status: {status}")
     print(f"Verification: {verification}")
-    print(f"Workflow Step: {STEP_DISPLAY.get(current_step, current_step) if current_step else 'NOT SET'}")
+    print(
+        f"Workflow Step: {STEP_DISPLAY.get(current_step, current_step) if current_step else 'NOT SET'}"
+    )
 
     if current_step and current_step in WORKFLOW_STEPS:
         idx = WORKFLOW_STEPS.index(current_step)
@@ -326,7 +448,7 @@ def cmd_status(args):
         freshness = "current" if item_mtime <= spec_mtime else "STALE"
         print(f"\nSPEC.md: {freshness}")
     else:
-        print(f"\nSPEC.md: NOT COMPILED")
+        print("\nSPEC.md: NOT COMPILED")
 
     return 0
 
