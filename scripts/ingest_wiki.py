@@ -153,10 +153,6 @@ def ingest(b_item_path):
         json.dump(manifest, f, indent=2, sort_keys=True)
         f.write("\n")
 
-    log_path = os.path.join(meta_dir, "ingestion.log")
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(f"{sha}\t{item_id}\t{len(touched)} file(s)\n")
-
     print(
         f"Ingested {item_id}: {len(touched)} touched file(s) recorded at {sha}.\n"
         f"Next: patch the affected wiki pages for these files, then list them "

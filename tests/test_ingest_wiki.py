@@ -305,3 +305,64 @@ def test_validate_wiki_advisory_suggested_pages_no_pages(wiki_repo_with_b_item):
     errors, warnings = validate_wiki.validate_wiki(str(repo))
     assert errors == []
     assert any("suggested_pages" in w and "pages" in w for w in warnings)
+
+
+# --------------------------------------------------------------------------- #
+# 0-B2: ingestion log suppression
+# --------------------------------------------------------------------------- #
+
+
+def test_ingest_no_creates_log(wiki_repo_with_b_item):
+    """After ingest, _meta/ingestion.log is NOT created.
+
+    The data is already in manifest.json (per-item ID, commit, file count);
+    the log was redundant and polluting diffs.
+    """
+    repo, b_item_path = wiki_repo_with_b_item
+    (repo / "src" / "users" / "service.py").write_text("# service updated\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "0-T1: touch service.py")
+
+    ingest_wiki.ingest(str(b_item_path))
+
+    log_path = repo / "docs" / "megaplan" / "wiki" / "_meta" / "ingestion.log"
+    assert not log_path.exists(), f"ingestion.log was unexpectedly created: {log_path}"
+
+
+def test_ingest_manifest_still_written(wiki_repo_with_b_item):
+    """Sanity: manifest.json is still written even though the log is not."""
+    repo, b_item_path = wiki_repo_with_b_item
+    (repo / "src" / "users" / "service.py").write_text("# service updated\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "0-T1: touch service.py")
+
+    ingest_wiki.ingest(str(b_item_path))
+
+    manifest_path = repo / "docs" / "megaplan" / "wiki" / "_meta" / "manifest.json"
+    assert manifest_path.exists()
+    manifest = json.loads(manifest_path.read_text())
+    assert "0-T1" in manifest["items"]
+
+
+def test_ingest_idempotent_without_log(wiki_repo_with_b_item):
+    """Re-running ingest for the same item still updates the manifest cleanly."""
+    repo, b_item_path = wiki_repo_with_b_item
+    (repo / "src" / "users" / "service.py").write_text("# service updated\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "0-T1: first touch")
+
+    assert ingest_wiki.ingest(str(b_item_path)) == 0
+
+    (repo / "src" / "users" / "service.py").write_text("# service updated again\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "0-T1: second touch")
+
+    assert ingest_wiki.ingest(str(b_item_path)) == 0
+
+    manifest_path = repo / "docs" / "megaplan" / "wiki" / "_meta" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    assert "0-T1" in manifest["items"]
+    # Only one entry, not duplicated.
+    assert len(manifest["items"]) == 1
+    log_path = repo / "docs" / "megaplan" / "wiki" / "_meta" / "ingestion.log"
+    assert not log_path.exists()
