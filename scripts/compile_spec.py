@@ -63,7 +63,13 @@ def build_wiki_context(repo_root, item_content):
 
 
 def compile_spec(b_item_path, spec_output_path="SPEC.md"):
-    repo_root = find_repo_root(start=os.path.dirname(os.path.abspath(__file__)))
+    try:
+        repo_root = find_repo_root(start=os.path.dirname(os.path.abspath(__file__)))
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            "Could not find project root — neither .git nor AGENTS.md "
+            "found in any parent directory."
+        )
     allowed_dir = os.path.realpath(repo_root)
     target_path = os.path.realpath(spec_output_path)
 

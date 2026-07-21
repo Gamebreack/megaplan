@@ -17,20 +17,36 @@ import sys
 def find_repo_root(start=None):
     """Walk upward from `start` (default: cwd) until a repo marker is found.
 
+    Returns the realpath of the directory containing the marker.
+
+    Prefers `.git` over `AGENTS.md`. Skips markers that are themselves
+    symlinks (conservative defense against dangling or misleading links).
+    Raises ``FileNotFoundError`` when no marker is found in any parent
+    (fail closed — no more fallback to ``os.getcwd()``).
+
     compile_spec.py historically started from the script directory; the other
     scripts started from the current working directory. Pass `start` explicitly
     to preserve each caller's original behavior.
     """
     if start is None:
         start = os.getcwd()
-    current = os.path.abspath(start)
+    current = os.path.realpath(start)
     while current != os.path.dirname(current):
-        if os.path.exists(os.path.join(current, "AGENTS.md")) or os.path.exists(
-            os.path.join(current, ".git")
-        ):
+        # Check .git first (preferred marker — stronger signal).
+        git_candidate = os.path.join(current, ".git")
+        if os.path.exists(git_candidate) and not os.path.islink(git_candidate):
             return current
+
+        # Check AGENTS.md.
+        agents_candidate = os.path.join(current, "AGENTS.md")
+        if os.path.exists(agents_candidate) and not os.path.islink(agents_candidate):
+            return current
+
         current = os.path.dirname(current)
-    return os.path.abspath(os.getcwd())
+    raise FileNotFoundError(
+        f"No repo marker (.git or AGENTS.md) found in any parent of "
+        f"{os.path.realpath(start)}"
+    )
 
 
 def parse_markdown_section(content, section_name, warn=False):

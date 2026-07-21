@@ -418,7 +418,15 @@ def cmd_check(args):
         print(f"Error: B-item file not found: {b_item_path}", file=sys.stderr)
         return 1
 
-    repo_root = find_repo_root()
+    try:
+        repo_root = find_repo_root()
+    except FileNotFoundError:
+        print(
+            "Error: Could not find project root — neither .git nor AGENTS.md "
+            "found in any parent directory.",
+            file=sys.stderr,
+        )
+        return 1
 
     with open(b_item_path, "r", encoding="utf-8") as f:
         content = f.read()
@@ -481,7 +489,15 @@ def cmd_status(args):
         print(f"Error: B-item file not found: {b_item_path}", file=sys.stderr)
         return 1
 
-    repo_root = find_repo_root()
+    try:
+        repo_root = find_repo_root()
+    except FileNotFoundError:
+        print(
+            "Error: Could not find project root — neither .git nor AGENTS.md "
+            "found in any parent directory.",
+            file=sys.stderr,
+        )
+        return 1
 
     with open(b_item_path, "r", encoding="utf-8") as f:
         content = f.read()
@@ -537,6 +553,7 @@ REQUIRED_SELFTEST_FILES = [
     "docs/megaplan/megaplan.md",
     "docs/megaplan/backlog.md",
     "docs/megaplan/glossary.md",
+    "docs/megaplan/.integrity-manifest.json",
 ]
 
 
@@ -546,26 +563,119 @@ def cmd_selftest(args):
     if not os.path.isdir(project_dir):
         print(f"selftest FAIL: {project_dir} is not a directory", file=sys.stderr)
         return 1
+
+    errors = []
+
+    # --- File-presence check (always runs — fast path) ---
     missing = [
         p
         for p in REQUIRED_SELFTEST_FILES
         if not os.path.exists(os.path.join(project_dir, p))
     ]
     if missing:
-        print("selftest FAIL: missing files:", file=sys.stderr)
+        errors.append("missing files:")
         for p in missing:
-            print(f"  - {p}", file=sys.stderr)
+            errors.append(f"  - {p}")
+
+    # --- Trust anchor: integrity manifest ---
+    manifest_path = os.path.join(
+        project_dir, "docs", "megaplan", ".integrity-manifest.json"
+    )
+    if not os.path.exists(manifest_path):
+        errors.append(
+            "No integrity manifest at `docs/megaplan/.integrity-manifest.json`. "
+            "Was the install completed?"
+        )
+    else:
+        # --- Import check via subprocess (hidden --selftest-imports flag) ---
+        import_check = subprocess.run(
+            [sys.executable, __file__, "--selftest-imports", project_dir],
+            capture_output=True,
+            text=True,
+        )
+        if import_check.returncode != 0:
+            errors.append(import_check.stderr.strip())
+
+        # --- File hash verification ---
+        import hashlib
+        import json
+
+        try:
+            with open(manifest_path, "r") as f:
+                manifest = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            errors.append(f"Could not read integrity manifest: {e}")
+            manifest = {}
+
+        for relpath, expected_hash in manifest.get("files", {}).items():
+            filepath = os.path.join(project_dir, relpath)
+            if not os.path.exists(filepath):
+                errors.append(
+                    f"File hash mismatch: {relpath} (file missing)"
+                )
+                continue
+            actual_hash = hashlib.sha256(
+                open(filepath, "rb").read()
+            ).hexdigest()
+            if actual_hash != expected_hash:
+                errors.append(
+                    f"File hash mismatch: {relpath} "
+                    f"(expected {expected_hash}, got {actual_hash})"
+                )
+
+        # --- Hook hash verification ---
+        for hook_name, expected_hash in manifest.get("hook", {}).items():
+            hook_path = os.path.join(
+                project_dir, ".git", "hooks", hook_name
+            )
+            if not os.path.exists(hook_path):
+                errors.append(
+                    f"Hook hash mismatch: .git/hooks/{hook_name} (hook missing)"
+                )
+                continue
+            actual_hash = hashlib.sha256(
+                open(hook_path, "rb").read()
+            ).hexdigest()
+            if actual_hash != expected_hash:
+                errors.append(
+                    f"Hook hash mismatch: .git/hooks/{hook_name} "
+                    f"(expected {expected_hash}, got {actual_hash})"
+                )
+
+    if errors:
+        for err in errors:
+            print(f"selftest FAIL: {err}", file=sys.stderr)
         return 1
-    # Sanity: the framework modules import without error.
-    sys.path.insert(0, os.path.join(project_dir, "scripts", "megaplan"))
-    for mod in ("_mdparse", "_wiki_map", "validate_backlog", "verify_workflow",
-                "ingest_wiki", "validate_wiki"):
+
+    print("selftest OK: Megaplan install is internally consistent.")
+    return 0
+
+
+def cmd_selftest_imports(project_dir):
+    """Check that framework modules import without error.
+
+    Runs in a subprocess via ``--selftest-imports <project_dir>`` so the
+    ``sys.path`` mutation does not leak into the parent process.
+    """
+    sys.path.insert(
+        0, os.path.join(project_dir, "scripts", "megaplan")
+    )
+    for mod in (
+        "_mdparse",
+        "_wiki_map",
+        "validate_backlog",
+        "verify_workflow",
+        "ingest_wiki",
+        "validate_wiki",
+    ):
         try:
             __import__(mod)
         except Exception as e:
-            print(f"selftest FAIL: {mod} import error: {e}", file=sys.stderr)
+            print(
+                f"selftest FAIL: {mod} import error: {e}",
+                file=sys.stderr,
+            )
             return 1
-    print("selftest OK: Megaplan install is internally consistent.")
     return 0
 
 
@@ -582,6 +692,12 @@ def main():
         "--project-dir",
         default=".",
         help="Project directory for --selftest (default: current directory).",
+    )
+    # Hidden flag: runs import checks in a subprocess (not shown in --help).
+    parser.add_argument(
+        "--selftest-imports",
+        metavar="DIR",
+        help=argparse.SUPPRESS,
     )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.required = False
@@ -605,6 +721,8 @@ def main():
 
     args = parser.parse_args()
 
+    if args.selftest_imports:
+        sys.exit(cmd_selftest_imports(args.selftest_imports))
     if args.selftest:
         sys.exit(cmd_selftest(args))
     if args.command == "check":

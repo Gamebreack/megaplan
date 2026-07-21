@@ -21,7 +21,7 @@ See `docs/methodology.md` for the full reference.
 Run this in your project directory (any git repo):
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.py | python3
+curl -sSL https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.py | python3 -
 ```
 
 That lays out `AGENTS.md` at the root, `docs/megaplan/` with the four core templates (plus the wiki templates if you opt in), the framework scripts under `scripts/megaplan/`, and the pre-commit hook. The bootstrap resolves the **latest version** automatically from the GitHub Releases API; pin a specific version with `--ref v2.0.0` if you need to.
@@ -31,6 +31,20 @@ Verify the install any time:
 ```bash
 python scripts/megaplan/verify_workflow.py --selftest
 # expected: "selftest OK: Megaplan install is internally consistent."
+```
+
+### Windows (PowerShell 5+)
+
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.ps1 | iex"
+```
+
+Prerequisites: **Python 3.10+** (for running the framework scripts), **Git for Windows** (for the pre-commit hook, which requires Git Bash), and **PowerShell 5+** (included with Windows 10/11).
+
+> **Limitations:** The pre-commit hook is a bash script and requires Git Bash (installed by default with Git for Windows). PowerShell-native git hooks are not supported. If Python is not on your PATH, the bootstrap prints a warning and skips the self-test — install Python first, then run the verification manually.
+
+```bash
+python scripts/megaplan/verify_workflow.py --selftest
 ```
 
 ### Flags
@@ -47,11 +61,20 @@ python scripts/megaplan/verify_workflow.py --selftest
 
 Re-running the bootstrap is idempotent: existing files are skipped (with a warning), the existing pre-commit hook is preserved unless `--force` is passed.
 
+### Passing flags
+
+Pass flags through the pipe by using `python3 -`:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.py | python3 - --ref v2.0.0
+```
+
 ### Troubleshooting
 
 - **`Error: <dir> is not a git repository`** — Run `git init` first, or pass `--skip-hook` to install without the hook.
 - **`warning: could not reach GitHub Releases API`** — Network blocked or rate-limited; the bootstrap fell back to `main` (unstable). Pass `--ref v2.0.0` to pin a stable version.
 - **`Self-test: FAILED`** — Run `python scripts/megaplan/verify_workflow.py --selftest` for the specific missing files. The most common cause is a partial lay-out from a previous interrupted run; re-run the bootstrap.
+- **Python version** — Megaplan requires Python 3.10+ (3.12+ recommended for the secure tarfile filter; 3.9-3.11 falls back to a manual path-traversal check). Check with `python3 --version`.
 
 ## Harness compatibility
 
@@ -62,6 +85,19 @@ After the bootstrap, your `AGENTS.md` is at the project root. Different harnesse
 | **OpenCode** | Loaded automatically from the project root |
 | **Hermes Agent** | Loaded automatically, or `hermes skills install Gamebreack/megaplan` |
 | **Claude Code** | Create `CLAUDE.md` with `@AGENTS.md`, or symlink: `ln -s AGENTS.md CLAUDE.md` |
+| **Cursor** | AGENTS.md is auto-loaded; or create `.cursorrules` with `cat AGENTS.md >> .cursorrules` |
+| **Aider** | Read AGENTS.md via `--read` flag or `CONVENTIONS.md` symlink |
+| **Windsurf** | AGENTS.md is auto-loaded; or rename to `.windsurfrules` |
+| **GitHub Copilot** | AGENTS.md is loaded via `.github/copilot-instructions.md` symlink: `ln -s ../../AGENTS.md .github/copilot-instructions.md` |
+
+## Marketplace install
+
+You can also install Megaplan via AI coding tool marketplaces:
+
+| Harness | How to install |
+|---------|----------------|
+| **Hermes Agent** | `hermes skills install Gamebreack/megaplan` |
+| **OpenCode** | Manual install: copy the files to `.opencode/skills/megaplan/` (marketplace integration coming) |
 
 ## File inventory
 
@@ -74,7 +110,8 @@ After the bootstrap, your `AGENTS.md` is at the project root. Different harnesse
 | `templates/backlog-item.md` | Starter for each B-item detail file |
 | `templates/adr.md` | Starter for Architecture Decision Records (ADRs) |
 | `templates/wiki/` | AI wiki templates (opt-in) |
-| `scripts/bootstrap.py` | The dumb-install bootstrap (one-line install) |
+| `scripts/bootstrap.py` | The dumb-install bootstrap (one-line install, Linux/macOS) |
+| `scripts/bootstrap.ps1` | The dumb-install bootstrap (one-line install, Windows PowerShell 5+) |
 | `scripts/compile_spec.py` | Compile a B-item into `SPEC.md` |
 | `scripts/validate_backlog.py` | Verify backlog integrity and cycle sync |
 | `scripts/verify_workflow.py` | Workflow gate enforcement + `--selftest` |

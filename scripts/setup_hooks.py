@@ -29,7 +29,8 @@ while [ "$DIR" != "/" ]; do
 done
 
 if [ -z "$REPO_ROOT" ]; then
-    REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    echo "Error: Could not find project root (no AGENTS.md or .git/ found in any parent directory)." >&2
+    exit 1
 fi
 
 EXIT_CODE=0

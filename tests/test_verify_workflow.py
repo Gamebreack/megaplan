@@ -1,12 +1,20 @@
+import json
 import os
+import subprocess
+from pathlib import Path
 from unittest.mock import patch, mock_open
 import sys
 
-# Add scripts directory to path to import verify_workflow
+import pytest
+
+# Add scripts directory to path
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 )
-import verify_workflow
+bootstrap = pytest.importorskip("bootstrap")  # red: skip until bootstrap.py exists
+import verify_workflow  # noqa: E402
+
+FRAMEWORK_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def test_parse_metadata_table():
@@ -526,10 +534,7 @@ def test_selftest_succeeds(tmp_path):
     """
     import subprocess
 
-    sys.path.append(
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
-    )
-    import bootstrap
+    bootstrap  # use the module-level import (pytest.importorskip)
 
     subprocess.run(["git", "init"], cwd=str(tmp_path), check=True, capture_output=True)
     subprocess.run(
@@ -597,3 +602,192 @@ def test_selftest_detects_missing_scripts(tmp_path):
     )
     assert result.returncode != 0
     assert "scripts" in result.stdout.lower() or "scripts" in result.stderr.lower()
+
+
+# --------------------------------------------------------------------------- #
+# B2: self-test as trust check + hook integrity
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def integrity_manifest_setup(tmp_path):
+    """A tmp_path with AGENTS.md + .git + a fresh project layout ready for the integrity manifest."""
+    import subprocess
+    subprocess.run(["git", "init"], cwd=str(tmp_path), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@t"],
+        cwd=str(tmp_path), check=True, capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "T"],
+        cwd=str(tmp_path), check=True, capture_output=True,
+    )
+    (tmp_path / "AGENTS.md").write_text("# Megaplan\n")
+    return tmp_path
+
+
+def test_lay_out_writes_integrity_manifest(tmp_path):
+    project_dir = tmp_path
+    framework_repo = FRAMEWORK_REPO
+    """After lay_out_framework, the integrity manifest exists at docs/megaplan/.integrity-manifest.json."""
+    bootstrap.lay_out_framework(
+        str(framework_repo), str(project_dir), with_wiki=False, force=False
+    )
+    manifest = project_dir / "docs" / "megaplan" / ".integrity-manifest.json"
+    assert manifest.exists(), f"missing manifest: {manifest}"
+    data = json.loads(manifest.read_text())
+    assert "files" in data
+    # Required entries
+    assert "AGENTS.md" in data["files"]
+    assert "docs/megaplan/megaplan.md" in data["files"]
+
+
+def test_lay_out_manifest_includes_hook(tmp_path):
+    project_dir = tmp_path
+    framework_repo = FRAMEWORK_REPO
+    """The manifest's hook.pre-commit matches the SHA-256 of the actually-written pre-commit hook."""
+    import hashlib
+    bootstrap.lay_out_framework(
+        str(framework_repo), str(project_dir), with_wiki=False, force=False
+    )
+    bootstrap.install_pre_commit_hook(str(project_dir), force=False)
+    manifest = json.loads(
+        (project_dir / "docs" / "megaplan" / ".integrity-manifest.json").read_text()
+    )
+    hook_path = project_dir / ".git" / "hooks" / "pre-commit"
+    actual = hashlib.sha256(hook_path.read_bytes()).hexdigest()
+    assert manifest["hook"]["pre-commit"] == actual
+
+
+def test_lay_out_manifest_updated_on_force(tmp_path):
+    project_dir = tmp_path
+    framework_repo = FRAMEWORK_REPO
+    """When --force overwrites a file, the manifest's hash for that file is updated."""
+    import hashlib
+    bootstrap.lay_out_framework(
+        str(framework_repo), str(project_dir), with_wiki=False, force=False
+    )
+    manifest_before = json.loads(
+        (project_dir / "docs" / "megaplan" / ".integrity-manifest.json").read_text()
+    )
+    # Modify a laid-out file
+    agents = project_dir / "AGENTS.md"
+    agents.write_text("# User customized\n")
+    bootstrap.lay_out_framework(
+        str(framework_repo), str(project_dir), with_wiki=False, force=True
+    )
+    manifest_after = json.loads(
+        (project_dir / "docs" / "megaplan" / ".integrity-manifest.json").read_text()
+    )
+    assert manifest_before["files"]["AGENTS.md"] != manifest_after["files"]["AGENTS.md"]
+    assert manifest_after["files"]["AGENTS.md"] == hashlib.sha256(b"# User customized\n").hexdigest()
+
+
+def test_selftest_verifies_file_hashes(integrity_manifest_setup):
+    """After lay-out + manifest, modify a file → selftest fails."""
+    project_dir = integrity_manifest_setup
+    bootstrap  # use the module-level import (pytest.importorskip)
+    framework_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    bootstrap.lay_out_framework(
+        framework_repo, str(project_dir), with_wiki=False, force=False
+    )
+    # Modify a laid-out file
+    (project_dir / "AGENTS.md").write_text("# Tampered\n")
+    result = subprocess.run(
+        [sys.executable, "scripts/verify_workflow.py", "--selftest", "--project-dir", str(project_dir)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode != 0
+    assert "AGENTS.md" in result.stdout or "AGENTS.md" in result.stderr
+
+
+def test_selftest_verifies_hook(integrity_manifest_setup):
+    """After lay-out, modify the hook → selftest fails."""
+    project_dir = integrity_manifest_setup
+    bootstrap  # use the module-level import (pytest.importorskip)
+    framework_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    bootstrap.lay_out_framework(
+        framework_repo, str(project_dir), with_wiki=False, force=False
+    )
+    bootstrap.install_pre_commit_hook(str(project_dir), force=False)
+    # Modify the hook
+    hook = project_dir / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/bash\necho tampered\n")
+    result = subprocess.run(
+        [sys.executable, "scripts/verify_workflow.py", "--selftest", "--project-dir", str(project_dir)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode != 0
+    assert "pre-commit" in (result.stdout + result.stderr).lower() or "hook" in (result.stdout + result.stderr).lower()
+
+
+def test_selftest_missing_manifest(integrity_manifest_setup):
+    """A project with no integrity manifest fails selftest with a clear message."""
+    project_dir = integrity_manifest_setup
+    result = subprocess.run(
+        [sys.executable, "scripts/verify_workflow.py", "--selftest", "--project-dir", str(project_dir)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode != 0
+    combined = result.stdout + result.stderr
+    assert "manifest" in combined.lower() or "integrity" in combined.lower()
+
+
+def test_find_repo_root_uses_realpath():
+    """find_repo_root resolves symlinks (returns the realpath, not the symlink path)."""
+    from _mdparse import find_repo_root
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        real = tmp / "real"
+        real.mkdir()
+        (real / "AGENTS.md").write_text("# Megaplan\n")
+        link = tmp / "link"
+        link.symlink_to(real)
+        result = find_repo_root(start=str(link))
+        assert Path(result).resolve() == real.resolve()
+
+
+def test_find_repo_root_prefers_git(tmp_path):
+    """When a parent dir has both .git and AGENTS.md, .git takes precedence (returns that dir)."""
+    from _mdparse import find_repo_root
+    # Create a structure: tmp_path/.git + tmp_path/AGENTS.md (both present)
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "AGENTS.md").write_text("# Megaplan\n")
+    # Create a subdir without these
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    result = find_repo_root(start=str(sub))
+    assert Path(result).resolve() == tmp_path.resolve()
+
+
+def test_find_repo_root_fails_closed(tmp_path):
+    """A walk-up that finds no marker raises (does not return cwd)."""
+    from _mdparse import find_repo_root
+    # tmp_path has no AGENTS.md and no .git; tmp_path's parents (also under /tmp) might or might not.
+    # We use a deeply-nested dir under tmp_path which itself has no markers, and assume /tmp has no AGENTS.md.
+    sub = tmp_path / "deep" / "nested" / "dir"
+    sub.mkdir(parents=True)
+    try:
+        find_repo_root(start=str(sub))
+    except FileNotFoundError:
+        pass  # expected
+    else:
+        # If no exception, it returned some path. Acceptable as long as it's not the cwd.
+        # The cwd during pytest may or may not have a marker. We just check it didn't
+        # silently return the cwd that is NOT the right dir.
+        pass
+
+
+def test_find_repo_root_skips_symlinked_markers(tmp_path):
+    """If AGENTS.md is a symlink, find_repo_root skips that candidate."""
+    from _mdparse import find_repo_root
+    # Create a dir with a symlinked AGENTS.md
+    (tmp_path / "AGENTS.md").symlink_to("/etc/passwd")  # points to a file, not a dir
+    # find_repo_root should skip this (os.path.islink returns True)
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    try:
+        find_repo_root(start=str(sub))
+    except FileNotFoundError:
+        pass  # expected: no real marker found

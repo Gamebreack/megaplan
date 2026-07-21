@@ -10,7 +10,7 @@ Full reference for the Megaplan plan-tracking system. See `AGENTS.md` for the co
 The fastest way to adopt megaplan in any git project is the dumb-install bootstrap:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.py | python3
+curl -sSL https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.py | python3 -
 ```
 
 The bootstrap resolves the latest release version automatically (falling back to `main` if the GitHub API is unreachable), downloads the framework archive, lays out the files into the project, installs the pre-commit hook, and runs a self-test.
@@ -191,14 +191,7 @@ Once a cycle is closed, any new bugs found must be tracked as new B-items in the
 
 ## File templates
 
-The `templates/` directory contains ready-to-copy starter files for each document type:
-
-| Template | Copy to |
-|----------|---------|
-| `templates/megaplan.md` | `docs/megaplan/megaplan.md` |
-| `templates/backlog.md` | `docs/megaplan/backlog.md` |
-| `templates/glossary.md` | `docs/megaplan/glossary.md` |
-| `templates/backlog-item.md` | `docs/megaplan/backlog-items/<ID>.md` |
+Templates were installed by the bootstrap. See `docs/megaplan/` for the installed copies.
 
 For a worked example showing all templates filled in across two cycles, see [`examples/simple-todo-api/`](../examples/simple-todo-api/).
 
@@ -311,7 +304,7 @@ Enforced by the gate script at the `document (post) → COMPLETE` transition.
 The wiki is **AI-targeted documentation** — a machine-maintained context store the
 coding agent reads at session start to load a project's accumulated architecture,
 contracts, decisions and gotchas, instead of re-deriving them every time. It is
-distinct from the **human-targeted** docs (`methodology.md`, `AGENTS.md`,
+distinct from the **human-targeted** docs (`docs/methodology.md`, `AGENTS.md`,
 `backlog.md`, `glossary.md`, `adr/`), which remain the sources of truth.
 
 **Golden rule:** the wiki is **derived and disposable**. If it disagrees with the

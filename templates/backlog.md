@@ -15,11 +15,11 @@ Notes section. Don't leave it `in-progress` — mark it `done` and list the drif
 ## Rules
 
 - Every status transition updates both this file and the detail file in the same commit.
-- New items are created from `templates/backlog-item.md` before any code is written.
+- New items are created from `docs/megaplan/backlog-items/_template.md` before any code is written.
 - Never create a B-item without a detail file.
 
 ## Index
 
+<!-- Replace this row with your first B-item -->
 | ID | Title | Status | Owner | Depends on | Detail |
 |----|-------|--------|-------|------------|--------|
-| 0-B1 | Example item | pending | — | — | [0-B1](backlog-items/0-B1.md) |

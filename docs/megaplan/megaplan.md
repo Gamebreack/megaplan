@@ -60,6 +60,28 @@ Gated by `python scripts/verify_workflow.py check <b_item> [--run-verifier]`.
   - Re-running the bootstrap is idempotent (skip + warn, no destructive overwrite). ✅
   - Full pytest suite green (65/65). ✅
 
+### Cycle B — Post-review hardening
+
+- **Status**: done
+- **Objectives**:
+  - Address 30 actionable findings from a 5-lens post-ship review of A-B1
+    (strategic, code, standards, UX, adversarial).
+  - The largest meta-findings are: (i) no integrity verification at any layer
+    (tarball, file hashes, hook content, self-test); (ii) the self-test is a
+    completeness check, not a trust check; (iii) docs written for the framework
+    repo are copied verbatim to the user project where paths are different;
+    (iv) `curl | python3` flag passing is broken in the docs.
+  - Five B-items grouped by meta-finding, sequenced by dependency
+    (B-B1 establishes the checksum infrastructure; B-B2 builds on it).
+- **Exit Criteria** (all met on 2026-07-21):
+  - All five B-items (`B-B1`..`B-B5`) reach `done`. ✅
+  - Full pytest suite green at each step transition (118/118). ✅
+  - A fresh end-to-end smoke test (clean tmp repo) shows: 0 critical/blocking
+    review findings remain, 0 HIGH findings remain. ✅
+  - `docs/methodology.md` accurately reflects the new behavior. ✅
+  - The framework's own install path follows the same rules as user installs
+    (dogfood). ✅
+
 ## Errata
 
 - **2026-07-21 — Wiki is opt-in; the framework repo does not enable a wiki for itself.**
@@ -76,6 +98,17 @@ Gated by `python scripts/verify_workflow.py check <b_item> [--run-verifier]`.
   framework tooling work does not change user-facing architecture that would warrant
   wiki pages) and the methodology's anti-pattern guidance explicitly tolerates it
   when the scope is "tooling not product."
+- **2026-07-21 — Cycle A closed.** `0154cdd` shipped the dumb-install bootstrap.
+  A post-ship 5-lens review found 30 actionable items; Cycle B addresses them.
+- **2026-07-21 — B-item naming convention.** This cycle uses `B1`..`B5` (no cycle
+  prefix) for the standard "Cycle B" naming. Per the methodology's "Cycle N — name"
+  pattern in `megaplan.md`, the cycle header (`Cycle B — Post-review hardening`)
+  gives the human context, while the B-item IDs stay short.
+- **2026-07-21 — B-item IDs renamed from `B1`..`B5` to `B-B1`..`B-B5`.** Renamed
+  files and updated all references to match the consistent `cycle-B` prefix pattern
+  used by cycles 0 and A.
+- **2026-07-21 — Cycle B closed.** All 5 B-items (`B-B1`..`B-B5`) completed via the
+  full workflow. Commits: (this will be the only commit for Cycle B).
 
 ## Errata
 

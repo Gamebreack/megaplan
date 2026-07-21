@@ -113,7 +113,15 @@ def ingest(b_item_path):
         print(f"Error: B-item file not found: {b_item_path}", file=sys.stderr)
         return 1
 
-    repo_root = find_repo_root(start=os.path.dirname(b_item_path))
+    try:
+        repo_root = find_repo_root(start=os.path.dirname(b_item_path))
+    except FileNotFoundError:
+        print(
+            "Error: Could not find project root — neither .git nor AGENTS.md "
+            "found in any parent directory.",
+            file=sys.stderr,
+        )
+        return 1
     wiki_dir = os.path.join(repo_root, WIKI_REL)
     if not os.path.isdir(wiki_dir):
         print(

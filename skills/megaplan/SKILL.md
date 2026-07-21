@@ -25,7 +25,7 @@ Load this skill when:
 The fastest way is the dumb-install bootstrap:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.py | python3
+curl -sSL https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.py | python3 -
 ```
 
 Run in the user's project directory (any git repo). The bootstrap lays out `AGENTS.md`, `docs/megaplan/`, the framework scripts, and the pre-commit hook. It resolves the latest version automatically; pin with `--ref v2.0.0`. Verify any time with `python scripts/megaplan/verify_workflow.py --selftest`.

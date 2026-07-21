@@ -18,7 +18,7 @@ It combines three things:
 The fastest way to adopt Megaplan in a project is the **dumb-install bootstrap**:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.py | python3
+curl -sSL https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.py | python3 -
 ```
 
 Run this in your project directory (any git repo). It lays out `AGENTS.md`, `docs/megaplan/`, the framework scripts under `scripts/megaplan/`, and installs the pre-commit hook. The bootstrap resolves the latest version automatically; pin a specific version with `--ref v2.0.0`.
@@ -128,14 +128,6 @@ docs/megaplan/
 └── adr/                     # Architecture Decision Records
 ```
 
-## Templates
-
-Copy these into `docs/megaplan/` in your project:
-- `templates/megaplan.md` → `docs/megaplan/megaplan.md` (project root plan)
-- `templates/backlog.md` → `docs/megaplan/backlog.md` (backlog index)
-- `templates/glossary.md` → `docs/megaplan/glossary.md` (canonical domain glossary)
-- `templates/backlog-item.md` → `docs/megaplan/backlog-items/<ID>.md` (one per B-item)
-
 ## Reference
 
 - `docs/methodology.md` — Full methodology reference
@@ -177,25 +169,4 @@ derived/disposable, source docs win; waive with `Wiki-Impact: none`).
   4. Follow workflow (Red before Green unless Exception applies)
   5. Run `verify_workflow.py check <b_item_path>` before advancing each step
 
----
-
-## K.I.S.S. Mode — Anti-bloat principles
-
-### Limits (evidence-backed)
-- AGENTS.md: target 150 lines, max 200 lines
-- Any template: max 80 lines
-
-### Simplify-first principle
-- Default to omission, not addition
-- If you can't explain it in 3 sentences, it doesn't belong here
-- Link external docs instead of embedding
-
-### Lifecycle rules
-- Stale content: mark as "archived" in filename — never delete (preserves traceability)
-- Review cadence: monthly — check for contradictions, not usage
-
-### Anti-bloat checklist (before committing)
-- [ ] Does this add a new rule?
-- [ ] Could this be a link instead of embedded content?
-- [ ] Would a new agent understand this in under 30 seconds?
-- [ ] Does this increase line count? If yes, what am I removing to compensate?
+AGENTS.md is intentionally short; for the full methodology see `docs/megaplan/methodology.md`.
