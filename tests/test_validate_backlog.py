@@ -1,7 +1,10 @@
+import json
 import os
-import pytest
-from unittest.mock import patch, mock_open
+import subprocess
 import sys
+from unittest.mock import mock_open, patch
+
+import pytest
 
 # Add scripts directory to path to import validate_backlog
 sys.path.append(
@@ -230,3 +233,196 @@ def test_main_workflow_step_mismatch():
                                         with pytest.raises(SystemExit) as excinfo:
                                             validate_backlog.main()
                                         assert excinfo.value.code == 1
+
+
+# --------------------------------------------------------------------------- #
+# 0-B3: waiver + freshness advisories
+# --------------------------------------------------------------------------- #
+
+
+def _git(cwd, *args, check=True):
+    return subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=check,
+    )
+
+
+def _b_item_md(item_id, wiki_impact="—"):
+    """Render a minimal valid B-item detail file body."""
+    return (
+        f"# {item_id}: Test item\n"
+        "\n"
+        "## Metadata\n"
+        "\n"
+        "| Field | Value |\n"
+        "|-------|-------|\n"
+        f"| ID | {item_id} |\n"
+        "| Status | done |\n"
+        f"| Wiki-Impact | {wiki_impact} |\n"
+    )
+
+
+def _init_repo_with_b_items(tmp_path, items):
+    """Create a git repo with `items` = [(cycle_id, wiki_impact), ...] B-items."""
+    _git(tmp_path, "init")
+    _git(tmp_path, "config", "user.email", "test@test.local")
+    _git(tmp_path, "config", "user.name", "Test")
+    _git(tmp_path, "config", "commit.gpgsign", "false")
+
+    items_dir = tmp_path / "docs" / "megaplan" / "backlog-items"
+    items_dir.mkdir(parents=True)
+    for item_id, wi in items:
+        (items_dir / f"{item_id}.md").write_text(_b_item_md(item_id, wi))
+
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", "init")
+    return tmp_path
+
+
+def test_waiver_rate_zero(tmp_path):
+    """Cycle with 0/3 waived → advisory reports '0/3 (0%)'."""
+    repo = _init_repo_with_b_items(
+        tmp_path, [("0-B1", "—"), ("0-B2", "—"), ("0-B3", "—")]
+    )
+    advisories = validate_backlog.waiver_advisory(str(repo), cycle_id="0")
+    text = " ".join(advisories)
+    assert "0/3" in text
+    assert "0%" in text
+
+
+def test_waiver_rate_partial(tmp_path):
+    """Cycle with 2/4 waived → advisory reports '2/4 (50%)'."""
+    repo = _init_repo_with_b_items(
+        tmp_path,
+        [
+            ("0-B1", "none"),
+            ("0-B2", "—"),
+            ("0-B3", "none"),
+            ("0-B4", "—"),
+        ],
+    )
+    advisories = validate_backlog.waiver_advisory(str(repo), cycle_id="0")
+    text = " ".join(advisories)
+    assert "2/4" in text
+    assert "50%" in text
+
+
+def test_waiver_rate_all(tmp_path):
+    """Cycle with 3/3 waived → advisory reports '3/3 (100%)'."""
+    repo = _init_repo_with_b_items(
+        tmp_path, [("0-B1", "none"), ("0-B2", "none"), ("0-B3", "none")]
+    )
+    advisories = validate_backlog.waiver_advisory(str(repo), cycle_id="0")
+    text = " ".join(advisories)
+    assert "3/3" in text
+    assert "100%" in text
+
+
+def test_waiver_rate_no_cycle(tmp_path):
+    """No matching cycle → empty advisory list."""
+    repo = _init_repo_with_b_items(tmp_path, [("A-B1", "none")])
+    advisories = validate_backlog.waiver_advisory(str(repo), cycle_id="0")
+    assert advisories == []
+
+
+def test_freshness_zero_lag(tmp_path):
+    """Manifest item at HEAD → no advisory for that item."""
+    repo = _init_repo_with_b_items(tmp_path, [("0-B1", "none")])
+    wiki_meta = repo / "docs" / "megaplan" / "wiki" / "_meta"
+    wiki_meta.mkdir(parents=True)
+    head_sha = _git(repo, "rev-parse", "--short", "HEAD").stdout.strip()
+    manifest = {"items": {"0-B1": {"updated_at_commit": head_sha, "touched_files": []}}}
+    (wiki_meta / "manifest.json").write_text(json.dumps(manifest))
+
+    advisories = validate_backlog.freshness_advisory(str(repo))
+    assert advisories == []
+
+
+def test_freshness_lag_reported(tmp_path):
+    """Manifest item 3 commits behind → advisory says '3 commits behind'."""
+    repo = _init_repo_with_b_items(tmp_path, [("0-B1", "none")])
+    wiki_meta = repo / "docs" / "megaplan" / "wiki" / "_meta"
+    wiki_meta.mkdir(parents=True)
+    head_sha = _git(repo, "rev-parse", "--short", "HEAD").stdout.strip()
+    # Advance 3 commits ahead of the recorded one.
+    for i in range(3):
+        (repo / "f.txt").write_text(f"v{i}\n")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", f"bump {i}")
+    manifest = {"items": {"0-B1": {"updated_at_commit": head_sha, "touched_files": []}}}
+    (wiki_meta / "manifest.json").write_text(json.dumps(manifest))
+
+    advisories = validate_backlog.freshness_advisory(str(repo))
+    text = " ".join(advisories)
+    assert "0-B1" in text
+    assert "3 commits behind" in text
+
+
+def test_freshness_unknown_commit(tmp_path):
+    """Manifest item with updated_at_commit == 'unknown' → no advisory."""
+    repo = _init_repo_with_b_items(tmp_path, [("0-B1", "none")])
+    wiki_meta = repo / "docs" / "megaplan" / "wiki" / "_meta"
+    wiki_meta.mkdir(parents=True)
+    manifest = {
+        "items": {"0-B1": {"updated_at_commit": "unknown", "touched_files": []}}
+    }
+    (wiki_meta / "manifest.json").write_text(json.dumps(manifest))
+
+    advisories = validate_backlog.freshness_advisory(str(repo))
+    assert advisories == []
+
+
+def test_no_wiki_no_freshness_advisory(tmp_path):
+    """No wiki dir → freshness_advisory returns [] (opt-in)."""
+    repo = _init_repo_with_b_items(tmp_path, [("0-B1", "none")])
+    advisories = validate_backlog.freshness_advisory(str(repo))
+    assert advisories == []
+
+
+def test_no_manifest_no_freshness_advisory(tmp_path):
+    """wiki/ exists, no manifest.json → freshness_advisory returns []."""
+    repo = _init_repo_with_b_items(tmp_path, [("0-B1", "none")])
+    (repo / "docs" / "megaplan" / "wiki" / "_meta").mkdir(parents=True)
+    advisories = validate_backlog.freshness_advisory(str(repo))
+    assert advisories == []
+
+
+def test_advisories_dont_block_main(tmp_path, capsys):
+    """A high waiver rate does not cause validate_backlog.main() to exit non-zero."""
+    repo = _init_repo_with_b_items(
+        tmp_path, [("0-B1", "none"), ("0-B2", "none"), ("0-B3", "none")]
+    )
+    # Provide a minimal backlog.md + glossary.md so the parser doesn't bail early.
+    backlog = repo / "docs" / "megaplan" / "backlog.md"
+    backlog.parent.mkdir(parents=True, exist_ok=True)
+    backlog.write_text(
+        "# Backlog\n\n## Index\n"
+        "| ID | Title | Status | Owner | Depends on | Detail |\n"
+        "|----|-------|--------|-------|------------|--------|\n"
+        "| 0-B1 | a | done | — | — | [0-B1](backlog-items/0-B1.md) |\n"
+        "| 0-B2 | b | done | — | — | [0-B2](backlog-items/0-B2.md) |\n"
+        "| 0-B3 | c | done | — | — | [0-B3](backlog-items/0-B3.md) |\n"
+    )
+    glossary = repo / "docs" / "megaplan" / "glossary.md"
+    glossary.write_text(
+        "# Glossary\n\n## Terms\n\n| Term | Definition | Canonical example | Common confusions |\n"
+        "|------|------------|-------------------|-------------------|\n"
+        "| X | Y | — | — |\n"
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "backlog + glossary")
+
+    with patch("sys.argv", ["validate_backlog.py", str(repo)]):
+        try:
+            validate_backlog.main()
+            rc = 0
+        except SystemExit as e:
+            rc = e.code
+    # Should pass (no errors); advisories are printed to stderr but don't fail.
+    assert rc == 0
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "3/3" in combined and "100%" in combined

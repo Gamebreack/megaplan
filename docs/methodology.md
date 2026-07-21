@@ -322,3 +322,19 @@ feeds the matching wiki pages forward as a bounded "Prior Context" section.
 A B-item whose work genuinely changes no architecture may set `| Wiki-Impact | none |`
 in its Metadata to waive the ingestion-record requirement.
 
+**Advisories vs gates.** Structural validation (manifest well-formed, front-matter
+parses, refs resolve) is **blocking** — manifest corruption is a real bug. The
+ingestion record (missing or stale entry) is **advisory** — the wiki is
+derived/disposable, and forcing every B-item to populate it would invert the
+source-wins relationship. Two non-blocking signals surface stale state without
+blocking the gate (see `ADR-001`):
+
+- **Per-cycle waiver rate** — `validate_backlog.py → waiver_advisory(repo_root)`
+  reports `<cycle>: <n>/<m> B-items waived Wiki-Impact (<pct>%)`. Surfaced
+  via `validate_backlog` and printed to stderr. No threshold; the human/agent
+  judges.
+- **Per-item freshness lag** — `validate_backlog.py → freshness_advisory(repo_root)`
+  reports `<id>: <n> commits behind HEAD (recorded <sha>)`. Surfaced via
+  `validate_backlog` and per-item in `verify_workflow.py check` at
+  `document (post) → COMPLETE`. No threshold; staleness is visible, not gated.
+

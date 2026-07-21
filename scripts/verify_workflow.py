@@ -344,6 +344,22 @@ def check_step_gate(current_step, b_item_path, repo_root, run_verifier=False):
     elif current_step == "document-post":
         ingestion_errors = check_layer3_ingestion(repo_root, b_item_path)
         errors.extend(ingestion_errors)
+        # Per-item freshness advisory (non-blocking). The wiki is opt-in and
+        # derived/disposable; the freshness lag is surfaced, not gated.
+        try:
+            import validate_backlog as _vb
+
+            item_id = None
+            if os.path.exists(b_item_path):
+                with open(b_item_path, "r", encoding="utf-8") as f:
+                    item_id = extract_id(f.read(), b_item_path)
+            for adv in _vb.freshness_advisory(repo_root):
+                if item_id is None or adv.startswith(f"{item_id}:"):
+                    print(f"  ! {adv}", file=sys.stderr)
+        except Exception as e:
+            errors.append(
+                f"Could not run per-item freshness advisory: {e}"
+            )
         if run_verifier:
             verifier_errors = check_layer2_verifier(repo_root)
             errors.extend(verifier_errors)

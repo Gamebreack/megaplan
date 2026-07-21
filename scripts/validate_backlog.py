@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-import os
-import sys
-import re
 import argparse
+import json
+import os
+import re
+import subprocess
+import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from _mdparse import parse_detail_metadata, parse_markdown_section
@@ -196,6 +198,114 @@ def validate_glossary(project_root):
             errors.append(f"Glossary '{rel_path}' contains no terms.")
 
     return errors
+
+
+# --------------------------------------------------------------------------- #
+# Advisories (non-blocking; the wiki is derived/disposable)
+# --------------------------------------------------------------------------- #
+
+
+WIKI_REL = os.path.join("docs", "megaplan", "wiki")
+MANIFEST_REL = os.path.join(WIKI_REL, "_meta", "manifest.json")
+
+
+def _count_commits_between(repo_root, base_sha, head_sha):
+    """Return the number of commits in `base_sha..head_sha`. None if undecidable."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-list", "--count", f"{base_sha}..{head_sha}"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return None
+        return int(result.stdout.strip())
+    except (subprocess.TimeoutExpired, ValueError, OSError):
+        return None
+
+
+def waiver_advisory(project_root, cycle_id=None):
+    """Return advisory strings about `Wiki-Impact: none` rate per cycle.
+
+    Non-blocking: the rate is surfaced for the agent/human to judge. No
+    threshold is applied (per ADR-001). Pass `cycle_id` to scan a single
+    cycle; pass None to scan all cycles.
+    """
+    items_dir = os.path.join(project_root, "docs", "megaplan", "backlog-items")
+    if not os.path.isdir(items_dir):
+        return []
+
+    counts = {}  # cycle -> (waived, total)
+    for fname in sorted(os.listdir(items_dir)):
+        if not fname.endswith(".md"):
+            continue
+        item_id = os.path.splitext(fname)[0]
+        cycle, _ = parse_id_parts(item_id)
+        if not cycle:
+            continue
+        if cycle_id is not None and cycle != cycle_id:
+            continue
+        if cycle not in counts:
+            counts[cycle] = [0, 0]
+        counts[cycle][1] += 1
+        metadata = parse_detail_metadata(os.path.join(items_dir, fname))
+        if metadata.get("wiki-impact", "").strip().lower() == "none":
+            counts[cycle][0] += 1
+
+    advisories = []
+    for cycle in sorted(counts, key=cycle_key):
+        waived, total = counts[cycle]
+        if total == 0:
+            continue
+        pct = int(round(waived * 100 / total))
+        advisories.append(
+            f"Cycle {cycle}: {waived}/{total} B-items waived Wiki-Impact ({pct}%) "
+            "— confirm cycle scope is consistent"
+        )
+    return advisories
+
+
+def freshness_advisory(project_root):
+    """Return advisory strings about manifest freshness vs HEAD.
+
+    Non-blocking: surfaces the lag so a stale wiki is visible. The wiki is
+    opt-in; missing wiki/ or missing manifest.json returns [].
+    """
+    manifest_path = os.path.join(project_root, MANIFEST_REL)
+    if not os.path.exists(manifest_path):
+        return []
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+    head = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+    )
+    head_sha = head.stdout.strip() if head.returncode == 0 else None
+    if not head_sha:
+        return []
+
+    advisories = []
+    for item_id, entry in (data.get("items") or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        recorded = entry.get("updated_at_commit", "")
+        if not recorded or recorded == "unknown":
+            continue
+        lag = _count_commits_between(project_root, recorded, head_sha)
+        if lag is None or lag <= 0:
+            continue
+        advisories.append(
+            f"{item_id}: {lag} commits behind HEAD (recorded {recorded})"
+        )
+    return advisories
 
 
 def main():
@@ -460,6 +570,13 @@ def main():
         for err in errors:
             print(f"  - {err}", file=sys.stderr)
         sys.exit(1)
+
+    # Advisories (non-blocking). Surface per-cycle waiver rate and manifest
+    # freshness to stderr; never raise or exit non-zero.
+    for adv in waiver_advisory(project_root):
+        print(f"  ! {adv}", file=sys.stderr)
+    for adv in freshness_advisory(project_root):
+        print(f"  ! {adv}", file=sys.stderr)
 
     print("Backlog validation passed successfully.")
     sys.exit(0)

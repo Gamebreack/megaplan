@@ -107,3 +107,145 @@ def test_check_step_gate_red():
     with patch("builtins.open", mock_open(read_data=b_item_content_with_test_plan)):
         errors = verify_workflow.check_step_gate("red", "b_item.md", "repo_root")
         assert len(errors) == 0
+
+
+# --------------------------------------------------------------------------- #
+# 0-B3: per-item freshness advisory at document (post)
+# --------------------------------------------------------------------------- #
+
+
+def test_document_post_advisory_emitted(tmp_path, capsys):
+    """Stale manifest at document-post → freshness advisory in stderr.
+
+    The `check_layer3_wiki` block on stale ingestion is a separate concern
+    (downgraded in 0-B4). This test asserts the NEW per-item freshness
+    advisory emitted by `freshness_advisory` reaches stderr.
+    """
+    import json
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=str(tmp_path), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@t"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "T"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    b_item = tmp_path / "docs" / "megaplan" / "backlog-items" / "0-B1.md"
+    b_item.parent.mkdir(parents=True)
+    b_item.write_text(
+        "# 0-B1: x\n\n## Metadata\n\n| Field | Value |\n|-------|-------|\n"
+        "| ID | 0-B1 |\n| Status | in-progress |\n| Workflow Step | document-post |\n\n"
+        "## Test plan\n\n- unit: tests/test_x.py\n"
+    )
+    # Make an initial commit so we have a real SHA to record in the manifest.
+    subprocess.run(["git", "add", "-A"], cwd=str(tmp_path), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "init"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    old_sha = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    # Advance 3 commits so the manifest is now stale.
+    for i in range(3):
+        (tmp_path / f"f{i}.txt").write_text(f"v{i}\n")
+        subprocess.run(
+            ["git", "add", "-A"], cwd=str(tmp_path), check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", f"bump {i}"],
+            cwd=str(tmp_path),
+            check=True,
+            capture_output=True,
+        )
+
+    wiki_meta = tmp_path / "docs" / "megaplan" / "wiki" / "_meta"
+    wiki_meta.mkdir(parents=True)
+    (wiki_meta / "manifest.json").write_text(
+        json.dumps({"items": {"0-B1": {"updated_at_commit": old_sha, "touched_files": []}}})
+    )
+    backlog = tmp_path / "docs" / "megaplan" / "backlog.md"
+    backlog.write_text(
+        "# Backlog\n\n## Index\n| ID | Title | Status | Owner | Depends on | Detail |\n"
+        "|----|-------|--------|-------|------------|--------|\n"
+        "| 0-B1 | x | in-progress | — | — | [0-B1](backlog-items/0-B1.md) |\n"
+    )
+    glossary = tmp_path / "docs" / "megaplan" / "glossary.md"
+    glossary.write_text(
+        "# Glossary\n\n## Terms\n\n| Term | Definition | Canonical example | Common confusions |\n"
+        "|------|------------|-------------------|-------------------|\n"
+        "| X | Y | — | — |\n"
+    )
+
+    verify_workflow.check_step_gate("document-post", str(b_item), str(tmp_path))
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    # The freshness advisory for the current item appears in stderr/stdout.
+    assert "0-B1" in combined
+    assert "commits behind" in combined
+
+
+def test_document_post_advisory_opt_out(tmp_path, capsys):
+    """No wiki/ → no advisory, no error at document-post."""
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=str(tmp_path), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@t"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "T"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    b_item = tmp_path / "docs" / "megaplan" / "backlog-items" / "0-B1.md"
+    b_item.parent.mkdir(parents=True)
+    b_item.write_text(
+        "# 0-B1: x\n\n## Metadata\n\n| Field | Value |\n|-------|-------|\n"
+        "| ID | 0-B1 |\n| Status | in-progress |\n| Workflow Step | document-post |\n\n"
+        "## Test plan\n\n- unit: tests/test_x.py\n"
+    )
+    backlog = tmp_path / "docs" / "megaplan" / "backlog.md"
+    backlog.write_text(
+        "# Backlog\n\n## Index\n| ID | Title | Status | Owner | Depends on | Detail |\n"
+        "|----|-------|--------|-------|------------|--------|\n"
+        "| 0-B1 | x | in-progress | — | — | [0-B1](backlog-items/0-B1.md) |\n"
+    )
+    glossary = tmp_path / "docs" / "megaplan" / "glossary.md"
+    glossary.write_text(
+        "# Glossary\n\n## Terms\n\n| Term | Definition | Canonical example | Common confusions |\n"
+        "|------|------------|-------------------|-------------------|\n"
+        "| X | Y | — | — |\n"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=str(tmp_path), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "init"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+
+    errors = verify_workflow.check_step_gate(
+        "document-post", str(b_item), str(tmp_path)
+    )
+    # No wiki → no freshness check at all → no advisory.
+    assert not any("stale" in e.lower() for e in errors)
+    assert not any("advisory" in e.lower() for e in errors)
