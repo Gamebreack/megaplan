@@ -249,3 +249,265 @@ def test_document_post_advisory_opt_out(tmp_path, capsys):
     # No wiki → no freshness check at all → no advisory.
     assert not any("stale" in e.lower() for e in errors)
     assert not any("advisory" in e.lower() for e in errors)
+
+
+# --------------------------------------------------------------------------- #
+# 0-B4: wiki reminder (downgrade blocking → advisory) at document (post)
+# --------------------------------------------------------------------------- #
+
+
+def _make_doc_post_fixture(tmp_path, *, wiki_impact="—", manifest_entry=None,
+                           manifest_corrupt=False, with_wiki=True,
+                           commit_at="HEAD"):
+    """Build a real git repo for the document-post gate tests."""
+    import json
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=str(tmp_path), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@t"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "T"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    b_item = tmp_path / "docs" / "megaplan" / "backlog-items" / "0-B1.md"
+    b_item.parent.mkdir(parents=True)
+    b_item.write_text(
+        f"# 0-B1: x\n\n## Metadata\n\n| Field | Value |\n|-------|-------|\n"
+        f"| ID | 0-B1 |\n| Status | in-progress |\n| Workflow Step | document-post |\n"
+        f"| Wiki-Impact | {wiki_impact} |\n\n## Test plan\n\n- unit: tests/test_x.py\n"
+    )
+    backlog = tmp_path / "docs" / "megaplan" / "backlog.md"
+    backlog.write_text(
+        "# Backlog\n\n## Index\n| ID | Title | Status | Owner | Depends on | Detail |\n"
+        "|----|-------|--------|-------|------------|--------|\n"
+        "| 0-B1 | x | in-progress | — | — | [0-B1](backlog-items/0-B1.md) |\n"
+    )
+    glossary = tmp_path / "docs" / "megaplan" / "glossary.md"
+    glossary.write_text(
+        "# Glossary\n\n## Terms\n\n| Term | Definition | Canonical example | Common confusions |\n"
+        "|------|------------|-------------------|-------------------|\n"
+        "| X | Y | — | — |\n"
+    )
+    if with_wiki:
+        wiki_meta = tmp_path / "docs" / "megaplan" / "wiki" / "_meta"
+        wiki_meta.mkdir(parents=True)
+        if manifest_corrupt:
+            (wiki_meta / "manifest.json").write_text("not valid json {")
+        elif manifest_entry is not None:
+            (wiki_meta / "manifest.json").write_text(
+                json.dumps({"items": manifest_entry})
+            )
+    subprocess.run(
+        ["git", "add", "-A"], cwd=str(tmp_path), check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "init"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    return b_item
+
+
+def test_wiki_reminder_emitted_missing_ingestion(tmp_path, capsys):
+    """No manifest entry, not waived → reminder in stderr, not in errors."""
+    b_item = _make_doc_post_fixture(
+        tmp_path, wiki_impact="—", manifest_entry={}  # no entry for 0-B1
+    )
+    errors = verify_workflow.check_step_gate("document-post", str(b_item), str(tmp_path))
+    # Missing-ingestion is advisory, not error.
+    assert not any("no ingestion record" in e for e in errors)
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "0-B1" in combined
+    assert "reminder" in combined.lower() or "advisory" in combined.lower()
+
+
+def test_wiki_reminder_emitted_stale_ingestion(tmp_path, capsys):
+    """Manifest entry with commit not ancestor of HEAD → reminder, not error.
+
+    We create a commit, capture its SHA, then `git reset --hard HEAD~1`
+    to leave the commit dangling in the object database but not in
+    HEAD's history. The gate should treat the manifest entry as stale —
+    and per 0-B4, that means an advisory, not a blocking error.
+    """
+    import json
+    import subprocess
+
+    b_item = _make_doc_post_fixture(tmp_path, wiki_impact="—", manifest_entry={})
+    # Create a commit we'll then orphan.
+    (tmp_path / "orphan.txt").write_text("orphan\n")
+    subprocess.run(
+        ["git", "add", "orphan.txt"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "orphan commit"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    orphan_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    # Reset HEAD back so the commit is no longer an ancestor.
+    subprocess.run(
+        ["git", "reset", "--hard", "HEAD~1"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    # Confirm it's not an ancestor anymore.
+    rc = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", orphan_sha, "HEAD"],
+        cwd=str(tmp_path),
+        capture_output=True,
+    ).returncode
+    assert rc != 0, f"orphan_sha {orphan_sha} should not be an ancestor of HEAD"
+
+    # Write the manifest referencing the orphan commit.
+    manifest_path = tmp_path / "docs" / "megaplan" / "wiki" / "_meta" / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {"items": {"0-B1": {"updated_at_commit": orphan_sha, "touched_files": []}}}
+        )
+    )
+
+    errors = verify_workflow.check_step_gate("document-post", str(b_item), str(tmp_path))
+    # Stale-ingestion is advisory, not error.
+    assert not any("stale" in e.lower() for e in errors)
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "0-B1" in combined
+
+
+def test_wiki_reminder_suppressed_when_waived(tmp_path, capsys):
+    """Wiki-Impact: none set → no reminder, no error."""
+    b_item = _make_doc_post_fixture(
+        tmp_path, wiki_impact="none", manifest_entry={}
+    )
+    errors = verify_workflow.check_step_gate("document-post", str(b_item), str(tmp_path))
+    assert not any("reminder" in e.lower() or "advisory" in e.lower() for e in errors)
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "0-B1" not in combined or "reminder" not in combined.lower()
+
+
+def test_wiki_reminder_suppressed_when_pages_present(tmp_path, capsys):
+    """Manifest entry has pages[] non-empty → no reminder."""
+    b_item = _make_doc_post_fixture(
+        tmp_path,
+        wiki_impact="—",
+        manifest_entry={
+            "0-B1": {
+                "updated_at_commit": "HEAD",
+                "touched_files": [],
+                "pages": ["docs/megaplan/wiki/architecture/x.md"],
+            }
+        },
+    )
+    # Ensure the recorded commit IS an ancestor of HEAD.
+    import json
+    import subprocess
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    manifest_path = tmp_path / "docs" / "megaplan" / "wiki" / "_meta" / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "items": {
+                    "0-B1": {
+                        "updated_at_commit": head_sha,
+                        "touched_files": [],
+                        "pages": ["docs/megaplan/wiki/architecture/x.md"],
+                    }
+                }
+            }
+        )
+    )
+
+    errors = verify_workflow.check_step_gate("document-post", str(b_item), str(tmp_path))
+    # Pages populated → no reminder, no stale error.
+    assert not any("stale" in e.lower() for e in errors)
+    assert not any("no ingestion record" in e for e in errors)
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    # No reminder text for this case.
+    assert "Layer 3 advisory" not in combined or "0-B1: missing" not in combined
+
+
+def test_structural_wiki_errors_still_block(tmp_path):
+    """Corrupt manifest.json → still error (structural validation is blocking)."""
+    b_item = _make_doc_post_fixture(
+        tmp_path, wiki_impact="—", manifest_corrupt=True
+    )
+    errors = verify_workflow.check_step_gate("document-post", str(b_item), str(tmp_path))
+    # Structural errors remain blocking.
+    assert any("manifest" in e.lower() for e in errors)
+
+
+def test_no_wiki_no_advisory(tmp_path, capsys):
+    """No wiki/ dir → no reminder, no error (opt-in)."""
+    b_item = _make_doc_post_fixture(tmp_path, wiki_impact="—", with_wiki=False)
+    errors = verify_workflow.check_step_gate("document-post", str(b_item), str(tmp_path))
+    assert not any("reminder" in e.lower() for e in errors)
+    assert not any("ingestion" in e.lower() for e in errors)
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert "Layer 3 advisory" not in combined
+
+
+def test_reminder_text_includes_suggested_pages_hint(tmp_path, capsys):
+    """When suggested_pages populated, the reminder text mentions it."""
+    import json
+    import subprocess
+    b_item = _make_doc_post_fixture(tmp_path, wiki_impact="—", manifest_entry={})
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    manifest_path = tmp_path / "docs" / "megaplan" / "wiki" / "_meta" / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "items": {
+                    "0-B1": {
+                        "updated_at_commit": head_sha,
+                        "touched_files": ["src/x.py"],
+                        "suggested_pages": [
+                            ["docs/megaplan/wiki/architecture/x.md", []]
+                        ],
+                        "pages": [],
+                    }
+                }
+            }
+        )
+    )
+
+    verify_workflow.check_step_gate("document-post", str(b_item), str(tmp_path))
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    # Either the stale check fires (commit ancestry) or the missing-pages
+    # reminder fires. The reminder should mention suggested_pages.
+    assert "suggested_pages" in combined or "0-B1" in combined

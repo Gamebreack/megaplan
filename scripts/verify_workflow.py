@@ -255,7 +255,14 @@ def _is_ancestor(repo_root, sha):
 
 
 def check_layer3_wiki(repo_root, b_item_path):
-    """Opt-in AI-wiki gate. No-op unless docs/megaplan/wiki/ exists."""
+    """Opt-in AI-wiki gate. No-op unless docs/megaplan/wiki/ exists.
+
+    Per ADR-001, structural validation (manifest well-formed, front-matter
+    parses, refs resolve) is **blocking** because manifest corruption is a
+    real bug. The ingestion record (missing or stale entry) is **advisory**
+    because the wiki is derived and disposable — surfacing the reminder
+    without gating the workflow.
+    """
     errors = []
     wiki_dir = os.path.join(repo_root, "docs", "megaplan", "wiki")
     if not os.path.isdir(wiki_dir):
@@ -269,7 +276,7 @@ def check_layer3_wiki(repo_root, b_item_path):
     metadata = parse_metadata_table(content)
     wiki_impact = metadata.get("wiki-impact", "").strip().lower()
 
-    # Structural validation (import lazily; sibling module).
+    # Structural validation (import lazily; sibling module). Blocking.
     try:
         import validate_wiki as _vw
 
@@ -297,20 +304,57 @@ def check_layer3_wiki(repo_root, b_item_path):
             entry = None
 
     if entry is None:
-        errors.append(
-            f"Layer 3 FAIL (wiki): no ingestion record for {item_id}. "
-            f"Run: python scripts/ingest_wiki.py {b_item_path} "
-            "(or set 'Wiki-Impact: none' in the B-item Metadata if it changes no architecture)."
+        # Advisory, not blocking (ADR-001).
+        suggested_hint = ""
+        # If validate_wiki already loaded a manifest in v_warnings, leave
+        # the hint minimal; the deterministic suggestion is in the manifest
+        # itself if the agent re-runs ingest.
+        print(
+            f"  ! Layer 3 advisory (wiki): {item_id} has no ingestion record. "
+            f"Confirm Wiki-Impact: none in Metadata, or run "
+            f"python scripts/ingest_wiki.py {b_item_path} and patch the "
+            f"implicated pages.",
+            file=sys.stderr,
         )
+        if suggested_hint:
+            print(f"    {suggested_hint}", file=sys.stderr)
         return errors
 
     ancestor = _is_ancestor(repo_root, entry.get("updated_at_commit"))
     if ancestor is False:
-        errors.append(
-            f"Layer 3 FAIL (wiki): ingestion for {item_id} is stale "
-            f"(recorded commit {entry.get('updated_at_commit')} is not in HEAD's history). "
-            f"Re-run: python scripts/ingest_wiki.py {b_item_path}"
+        # Advisory, not blocking (ADR-001).
+        print(
+            f"  ! Layer 3 advisory (wiki): ingestion for {item_id} is stale "
+            f"(recorded commit {entry.get('updated_at_commit')} is not in "
+            f"HEAD's history). Re-run: "
+            f"python scripts/ingest_wiki.py {b_item_path}",
+            file=sys.stderr,
         )
+    elif ancestor is None:
+        # Unknown commit SHA (was never an ancestor) — also advisory.
+        print(
+            f"  ! Layer 3 advisory (wiki): ingestion for {item_id} references "
+            f"unknown commit {entry.get('updated_at_commit')}. Re-run: "
+            f"python scripts/ingest_wiki.py {b_item_path}",
+            file=sys.stderr,
+        )
+
+    # Did-you-forget reminder: even if the manifest entry exists and is
+    # fresh, an empty `pages[]` with non-empty `suggested_pages` means the
+    # agent acknowledged the deterministic suggestion but never wrote the
+    # authored decision. This is the most common lapse.
+    if isinstance(entry, dict):
+        suggested = entry.get("suggested_pages") or []
+        pages = entry.get("pages") or []
+        if suggested and not pages:
+            paths = [p for p, _ in suggested]
+            print(
+                f"  ! Layer 3 advisory (wiki): {item_id} has "
+                f"{len(suggested)} suggested wiki page(s) but pages[] is "
+                f"empty. Confirm Wiki-Impact: none in Metadata, or list the "
+                f"pages you patched. suggested_pages: {paths}",
+                file=sys.stderr,
+            )
 
     return errors
 

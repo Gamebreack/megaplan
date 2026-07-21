@@ -326,8 +326,8 @@ in its Metadata to waive the ingestion-record requirement.
 parses, refs resolve) is **blocking** — manifest corruption is a real bug. The
 ingestion record (missing or stale entry) is **advisory** — the wiki is
 derived/disposable, and forcing every B-item to populate it would invert the
-source-wins relationship. Two non-blocking signals surface stale state without
-blocking the gate (see `ADR-001`):
+source-wins relationship. Three non-blocking signals surface stale state
+without blocking the gate (see `ADR-001`):
 
 - **Per-cycle waiver rate** — `validate_backlog.py → waiver_advisory(repo_root)`
   reports `<cycle>: <n>/<m> B-items waived Wiki-Impact (<pct>%)`. Surfaced
@@ -337,4 +337,13 @@ blocking the gate (see `ADR-001`):
   reports `<id>: <n> commits behind HEAD (recorded <sha>)`. Surfaced via
   `validate_backlog` and per-item in `verify_workflow.py check` at
   `document (post) → COMPLETE`. No threshold; staleness is visible, not gated.
+- **Per-item wiki reminder** — `verify_workflow.py → check_layer3_wiki` prints
+  `Layer 3 advisory (wiki): ...` to stderr when the manifest entry is missing
+  or stale, or when `suggested_pages` is populated but `pages[]` is empty. The
+  reminder is a hint, not a gate: agents can either patch the wiki and
+  re-ingest, or set `Wiki-Impact: none` to silence it.
+
+The 3-Layer gate at `document (post) → COMPLETE` enforces the structural check
+(blocking) and surfaces the three advisories. It does **not** block on
+ingestion record state.
 
