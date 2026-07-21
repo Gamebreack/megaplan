@@ -255,6 +255,8 @@ If any condition is missing, skip the ADR. Store ADRs at `docs/megaplan/adr/ADR-
 | Using `superseded` to hide decisions | Always keep superseded items — they explain why things changed |
 | Speculating future scope into the backlog | Adds noise; scope cycles when they start, not earlier |
 | Missing AGENTS.md at project root | Methodology has no teeth across sessions |
+| Setting `Wiki-Impact: none` to skip a real architectural change | The escape hatch is for genuinely no-impact items; abusing it starves the AI wiki and defeats Layer 3 |
+| Treating the AI wiki as a source of truth | It is derived/disposable — trusting stale wiki prose over code/source docs propagates confidently-wrong context |
 
 ---
 
@@ -274,10 +276,41 @@ Multi-stage verification runs inside the execution sandbox:
 Run with `python scripts/verify_workflow.py check <b_item> --run-verifier`.
 
 ### 3. Automated Ingestion Loop (Layer 3)
-During the `document (post)` step, verify documentation artifacts:
+During the `document (post)` step, verify documentation artifacts and refresh the AI wiki:
 - Backlog index and detail file are dual-updated
 - Glossary reflects implemented changes
 - Links between backlog items are valid
+- The **AI wiki** is ingested (see below)
 
 Enforced by the gate script at the `document (post) → COMPLETE` transition.
+
+#### The AI Wiki (`docs/megaplan/wiki/`)
+
+The wiki is **AI-targeted documentation** — a machine-maintained context store the
+coding agent reads at session start to load a project's accumulated architecture,
+contracts, decisions and gotchas, instead of re-deriving them every time. It is
+distinct from the **human-targeted** docs (`methodology.md`, `AGENTS.md`,
+`backlog.md`, `glossary.md`, `adr/`), which remain the sources of truth.
+
+**Golden rule:** the wiki is **derived and disposable**. If it disagrees with the
+code or a human-facing source doc, the source wins and the wiki is stale — re-ingest.
+It never becomes an authority; it augments dual-update, it does not replace it.
+
+Ingestion is split into a deterministic half and an authored half:
+- **Deterministic** — `scripts/ingest_wiki.py <b_item>` records which files changed
+  and at which commit into `wiki/_meta/manifest.json`. No judgment, idempotent.
+- **Authored** — during `document (post)`, patch only the heading-anchored
+  subsections of the wiki pages implicated by those touched files (create a page if
+  a module has none), and list the pages you touched under
+  `manifest.json → items[<id>].pages`. Decision digests **link** to the canonical
+  ADR — never restate its rationale.
+
+The wiki is **opt-in**: gates and checks are no-ops until `docs/megaplan/wiki/`
+exists. `scripts/validate_wiki.py` verifies structure (manifest well-formed,
+front-matter parses, refs resolve) — it cannot verify that authored prose is
+*true*, so an agent must still read wiki context skeptically. Compiled `SPEC.md`
+feeds the matching wiki pages forward as a bounded "Prior Context" section.
+
+A B-item whose work genuinely changes no architecture may set `| Wiki-Impact | none |`
+in its Metadata to waive the ingestion-record requirement.
 

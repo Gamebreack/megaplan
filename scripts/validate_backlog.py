@@ -5,10 +5,17 @@ import re
 import argparse
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from _mdparse import parse_detail_metadata, parse_markdown_section
+
 try:
     import verify_workflow
 except ImportError:
     verify_workflow = None
+
+try:
+    import validate_wiki
+except ImportError:
+    validate_wiki = None
 
 
 def parse_id_parts(item_id):
@@ -97,65 +104,6 @@ def parse_backlog_index(backlog_path):
         )
 
     return items
-
-
-def parse_markdown_section(content, section_name):
-    """
-    Extracts the content of a markdown section by name.
-    """
-    lines = content.split("\n")
-    section_lines = []
-    in_section = False
-    in_code_block = False
-    section_level = None
-
-    for line in lines:
-        if line.strip().startswith("```"):
-            in_code_block = not in_code_block
-
-        if not in_code_block:
-            match = re.match(r"^(#+)\s+(.+)$", line)
-            if match:
-                level = len(match.group(1))
-                name = match.group(2).strip()
-                name_clean = re.sub(r"[*_`]", "", name).strip().lower()
-                if name_clean == section_name.lower():
-                    in_section = True
-                    section_level = level
-                    continue
-                elif in_section and level <= section_level:
-                    break
-
-        if in_section:
-            section_lines.append(line)
-
-    if in_section:
-        return "\n".join(section_lines).strip()
-    return ""
-
-
-def parse_detail_metadata(detail_path):
-    if not os.path.exists(detail_path):
-        return {}
-    with open(detail_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    metadata_table = parse_markdown_section(content, "Metadata")
-    if not metadata_table:
-        return {}
-
-    result = {}
-    for line in metadata_table.split("\n"):
-        line_str = line.strip()
-        if line_str.startswith("|"):
-            cells = [c.strip() for c in line_str.split("|")[1:-1]]
-            if len(cells) >= 2:
-                field = re.sub(r"[*_`]", "", cells[0]).strip().lower()
-                value = re.sub(r"[*_`]", "", cells[1]).strip()
-                if field == "field" or re.match(r"^:-*-*|-*-*:-*|-*-*$", field):
-                    continue
-                result[field] = value.lower()
-    return result
 
 
 def parse_detail_status(detail_path):
@@ -282,6 +230,13 @@ def main():
     # Validate Glossary
     glossary_errors = validate_glossary(project_root)
     errors.extend(glossary_errors)
+
+    # Validate AI wiki structure (opt-in: no-op unless docs/megaplan/wiki/ exists)
+    if validate_wiki is not None:
+        wiki_errors, wiki_warnings = validate_wiki.validate_wiki(project_root)
+        for w in wiki_warnings:
+            print(f"  ! Wiki warning: {w}", file=sys.stderr)
+        errors.extend(f"Wiki: {e}" for e in wiki_errors)
 
     # Check for orphaned files (matching both B-item and Bug ID structures)
     all_detail_files = []

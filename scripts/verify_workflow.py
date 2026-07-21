@@ -6,6 +6,14 @@ import shutil
 import subprocess
 import sys
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from _mdparse import (
+    extract_id,
+    find_repo_root,
+    parse_markdown_section,
+    parse_metadata_table,
+)
+
 
 WORKFLOW_STEPS = ["document-pre", "red", "green", "blue", "document-post", "complete"]
 STEP_DISPLAY = {
@@ -16,17 +24,6 @@ STEP_DISPLAY = {
     "document-post": "document (post)",
     "complete": "COMPLETE",
 }
-
-
-def find_repo_root():
-    current = os.path.abspath(os.getcwd())
-    while current != os.path.dirname(current):
-        if os.path.exists(os.path.join(current, "AGENTS.md")) or os.path.exists(
-            os.path.join(current, ".git")
-        ):
-            return current
-        current = os.path.dirname(current)
-    return os.path.abspath(os.getcwd())
 
 
 def command_exists(cmd):
@@ -82,77 +79,6 @@ def is_project_type(tool_type, repo_root):
                 return True
         return False
     return True
-
-
-def parse_metadata_table(content):
-    lines = content.split("\n")
-    in_metadata = False
-    in_code_block = False
-    metadata = {}
-
-    for line in lines:
-        if line.strip().startswith("```"):
-            in_code_block = not in_code_block
-        if in_code_block:
-            continue
-        match = re.match(r"^(#+)\s+(.+)$", line)
-        if match:
-            name = re.sub(r"[*_`]", "", match.group(2).strip()).lower()
-            if name == "metadata":
-                in_metadata = True
-                continue
-            elif in_metadata:
-                break
-        if in_metadata and line.strip().startswith("|"):
-            cells = [c.strip() for c in line.strip().split("|")[1:-1]]
-            if len(cells) >= 2:
-                field = re.sub(r"[*_`]", "", cells[0]).strip().lower()
-                value = re.sub(r"[*_`]", "", cells[1]).strip()
-                if field not in ("field",) and not re.match(r"^:?-+:?$", field):
-                    metadata[field] = value
-
-    return metadata
-
-
-def parse_markdown_section(content, section_name):
-    lines = content.split("\n")
-    section_lines = []
-    in_section = False
-    in_code_block = False
-    section_level = None
-
-    for line in lines:
-        if line.strip().startswith("```"):
-            in_code_block = not in_code_block
-        if not in_code_block:
-            match = re.match(r"^(#+)\s+(.+)$", line)
-            if match:
-                level = len(match.group(1))
-                name = re.sub(r"[*_`]", "", match.group(2).strip()).lower()
-                if name == section_name.lower():
-                    in_section = True
-                    section_level = level
-                    continue
-                elif in_section and level <= section_level:
-                    break
-        if in_section:
-            section_lines.append(line)
-
-    if in_section:
-        return "\n".join(section_lines).strip()
-    return ""
-
-
-def extract_id(content, filepath):
-    title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
-    if title_match:
-        title = title_match.group(1).strip()
-        id_match = re.match(
-            r"^([a-zA-Z0-9]+-B[0-9]+(?:\.B[0-9]+)?)", re.sub(r"[*_`]", "", title)
-        )
-        if id_match:
-            return id_match.group(1)
-    return os.path.splitext(os.path.basename(filepath))[0]
 
 
 def get_workflow_step(metadata):
@@ -305,6 +231,86 @@ def check_layer3_ingestion(repo_root, b_item_path):
             errors.append(
                 f"Layer 3 FAIL: B-item {item_id} not found in backlog.md (dual-update violation)"
             )
+
+    errors.extend(check_layer3_wiki(repo_root, b_item_path))
+
+    return errors
+
+
+def _is_ancestor(repo_root, sha):
+    """True if `sha` is an ancestor of (or equal to) HEAD. None if undecidable."""
+    if not sha or sha == "unknown":
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", sha, "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=repo_root,
+            timeout=30,
+        )
+        return result.returncode == 0
+    except Exception:
+        return None
+
+
+def check_layer3_wiki(repo_root, b_item_path):
+    """Opt-in AI-wiki gate. No-op unless docs/megaplan/wiki/ exists."""
+    errors = []
+    wiki_dir = os.path.join(repo_root, "docs", "megaplan", "wiki")
+    if not os.path.isdir(wiki_dir):
+        return errors  # opt-in: project has not adopted the wiki
+
+    if not os.path.exists(b_item_path):
+        return errors
+    with open(b_item_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    item_id = extract_id(content, b_item_path)
+    metadata = parse_metadata_table(content)
+    wiki_impact = metadata.get("wiki-impact", "").strip().lower()
+
+    # Structural validation (import lazily; sibling module).
+    try:
+        import validate_wiki as _vw
+
+        v_errors, v_warnings = _vw.validate_wiki(repo_root)
+        for e in v_errors:
+            errors.append(f"Layer 3 FAIL (wiki): {e}")
+        for w in v_warnings:
+            print(f"  ! Layer 3 warning (wiki): {w}", file=sys.stderr)
+    except Exception as e:
+        errors.append(f"Layer 3 FAIL (wiki): could not run wiki validation: {e}")
+
+    # Ingestion-record requirement, unless the item declares no wiki impact.
+    if wiki_impact == "none":
+        return errors
+
+    import json
+
+    manifest_path = os.path.join(wiki_dir, "_meta", "manifest.json")
+    entry = None
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                entry = json.load(f).get("items", {}).get(item_id)
+        except (json.JSONDecodeError, OSError):
+            entry = None
+
+    if entry is None:
+        errors.append(
+            f"Layer 3 FAIL (wiki): no ingestion record for {item_id}. "
+            f"Run: python scripts/ingest_wiki.py {b_item_path} "
+            "(or set 'Wiki-Impact: none' in the B-item Metadata if it changes no architecture)."
+        )
+        return errors
+
+    ancestor = _is_ancestor(repo_root, entry.get("updated_at_commit"))
+    if ancestor is False:
+        errors.append(
+            f"Layer 3 FAIL (wiki): ingestion for {item_id} is stale "
+            f"(recorded commit {entry.get('updated_at_commit')} is not in HEAD's history). "
+            f"Re-run: python scripts/ingest_wiki.py {b_item_path}"
+        )
 
     return errors
 

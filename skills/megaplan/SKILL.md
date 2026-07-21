@@ -52,7 +52,7 @@ document (pre) → red → green → blue → document (post) → COMPLETE
 | **red** | Write failing tests. Run them — they must fail. |
 | **green** | Write minimum production code to pass all tests. |
 | **blue** | Refactor without adding features or breaking tests. |
-| **document (post)** | Update all docs to reflect what was built. |
+| **document (post)** | Update all docs; ingest the AI wiki if `docs/megaplan/wiki/` exists. |
 | **COMPLETE** | Mark done in both `backlog.md` index and detail file. |
 
 **The Red step is the default standard for TDD-verified items.**
@@ -111,10 +111,12 @@ Before advancing a workflow step, run the gate script:
 | Layer 1 | red → green | Test plan populated in B-item |
 | Layer 2 | green → blue | Tests pass (`--run-verifier`) |
 | Layer 2 | blue → doc | Tests + lint pass (`--run-verifier`) |
-| Layer 3 | doc → COMPLETE | Backlog + glossary updated, dual-update verified |
+| Layer 3 | doc → COMPLETE | Backlog + glossary dual-updated; AI wiki ingested (opt-in, if `wiki/` exists) |
 
 Install pre-commit hooks: `python scripts/setup_hooks.py`
-See `references/methodology.md` for the full 3-Layer reference.
+See `references/methodology.md` for the full 3-Layer reference. The AI wiki
+(`docs/megaplan/wiki/`) is AI-targeted, derived/disposable context — source docs
+win on conflict; waive per-item with `Wiki-Impact: none`.
 
 ## Anti-patterns
 
@@ -159,7 +161,7 @@ Templates for bootstrapping new projects: [templates/](templates/)
 * Bugs: `<CYCLE>-B<N>.B<M>` (parent B-item N, sequential bug M)
 * Startup checks:
   1. Compile to `SPEC.md` (`python scripts/compile_spec.py <path_to_b_item>`)
-  2. Read source B-item and `docs/megaplan/glossary.md`
+  2. Read source B-item, `docs/megaplan/glossary.md`, and the AI wiki if present (`docs/megaplan/wiki/INDEX.md`)
   3. Ensure dependencies are `done`
   4. Follow workflow (Red before Green unless Exception applies)
   5. Run `verify_workflow.py check <b_item_path>` before advancing each step

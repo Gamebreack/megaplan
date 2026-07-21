@@ -3,56 +3,67 @@ import os
 import re
 import sys
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from _mdparse import find_repo_root, parse_front_matter, parse_markdown_section
 
-def parse_markdown_section(content, section_name):
+WIKI_CONTEXT_MAX_PAGES = 3
+WIKI_CONTEXT_MAX_LINES = 150
+
+
+def build_wiki_context(repo_root, item_content):
+    """Return an optional '## 6. Prior Context (AI Wiki)' section, or "".
+
+    Deterministic feed-forward: pulls architecture/notes pages whose `module`
+    slug is mentioned in this B-item, bounded so Layer 1's context-limiting
+    purpose survives. Returns "" when no wiki exists or nothing matches.
     """
-    Extracts the content of a markdown section by name.
-    """
-    lines = content.split("\n")
-    section_lines = []
-    in_section = False
-    in_code_block = False
-    section_level = None
+    wiki_dir = os.path.join(repo_root, "docs", "megaplan", "wiki")
+    if not os.path.isdir(wiki_dir):
+        return ""
 
-    for line in lines:
-        if line.strip().startswith("```"):
-            in_code_block = not in_code_block
+    haystack = item_content.lower()
+    candidates = []
+    for sub in ("architecture", "notes"):  # most useful as prior context
+        d = os.path.join(wiki_dir, sub)
+        if not os.path.isdir(d):
+            continue
+        for name in sorted(os.listdir(d)):
+            if not name.endswith(".md"):
+                continue
+            page_path = os.path.join(d, name)
+            with open(page_path, "r", encoding="utf-8") as f:
+                page = f.read()
+            meta, body = parse_front_matter(page)
+            module = (meta.get("module") or "").strip().lower()
+            if module and module in haystack:
+                rel = os.path.relpath(page_path, wiki_dir)
+                candidates.append((rel, body.strip()))
 
-        if not in_code_block:
-            match = re.match(r"^(#+)\s+(.+)$", line)
-            if match:
-                level = len(match.group(1))
-                name = match.group(2).strip()
-                name_clean = re.sub(r"[*_`]", "", name).strip().lower()
+    if not candidates:
+        return ""
 
-                if name_clean == section_name.lower():
-                    in_section = True
-                    section_level = level
-                    continue
-                elif in_section and level <= section_level:
-                    break
+    blocks = []
+    line_budget = WIKI_CONTEXT_MAX_LINES
+    for rel, body in candidates[:WIKI_CONTEXT_MAX_PAGES]:
+        body_lines = body.split("\n")
+        if len(body_lines) > line_budget:
+            body_lines = body_lines[:line_budget] + ["", "*(truncated)*"]
+        line_budget -= len(body_lines)
+        blocks.append(f"### From `wiki/{rel}`\n" + "\n".join(body_lines))
+        if line_budget <= 0:
+            break
 
-        if in_section:
-            section_lines.append(line)
-
-    if in_section:
-        return "\n".join(section_lines).strip()
-    return ""
-
-
-def find_repo_root():
-    current = os.path.dirname(os.path.abspath(__file__))
-    while current != os.path.dirname(current):
-        if os.path.exists(os.path.join(current, "AGENTS.md")) or os.path.exists(
-            os.path.join(current, ".git")
-        ):
-            return current
-        current = os.path.dirname(current)
-    return os.path.abspath(os.getcwd())
+    return (
+        "\n## 6. Prior Context (AI Wiki)\n"
+        "> Injected from the AI wiki as background — derived and possibly stale. "
+        "The code and source docs win on any conflict.\n\n"
+        + "\n\n".join(blocks)
+        + "\n"
+    )
 
 
 def compile_spec(b_item_path, spec_output_path="SPEC.md"):
-    repo_root = find_repo_root()
+    repo_root = find_repo_root(start=os.path.dirname(os.path.abspath(__file__)))
     allowed_dir = os.path.realpath(repo_root)
     target_path = os.path.realpath(spec_output_path)
 
@@ -113,6 +124,8 @@ def compile_spec(b_item_path, spec_output_path="SPEC.md"):
 * Do not delete or rename existing configuration files unless explicitly directed above.
 * Always run the verification tests before declaring the task complete.
 """
+
+    spec_content += build_wiki_context(repo_root, content)
 
     with open(target_path, "w", encoding="utf-8") as f:
         f.write(spec_content)
