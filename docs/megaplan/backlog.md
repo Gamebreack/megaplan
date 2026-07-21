@@ -22,7 +22,7 @@ Notes section. Don't leave it `in-progress` — mark it `done` and list the drif
 
 | ID | Title | Status | Owner | Depends on | Detail |
 |----|-------|--------|-------|------------|--------|
-| 0-B1 | `suggest_pages` helper for wiki ingestion | pending | — | — | [0-B1](backlog-items/0-B1.md) |
+| 0-B1 | `suggest_pages` helper for wiki ingestion | done | — | — | [0-B1](backlog-items/0-B1.md) |
 | 0-B2 | Drop `_meta/ingestion.log` writes | pending | — | — | [0-B2](backlog-items/0-B2.md) |
 | 0-B3 | Per-cycle waiver + freshness advisories | pending | — | — | [0-B3](backlog-items/0-B3.md) |
 | 0-B4 | `verify_workflow.py` non-blocking wiki reminder | pending | — | — | [0-B4](backlog-items/0-B4.md) |

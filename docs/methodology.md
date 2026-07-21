@@ -298,12 +298,20 @@ It never becomes an authority; it augments dual-update, it does not replace it.
 
 Ingestion is split into a deterministic half and an authored half:
 - **Deterministic** — `scripts/ingest_wiki.py <b_item>` records which files changed
-  and at which commit into `wiki/_meta/manifest.json`. No judgment, idempotent.
-- **Authored** — during `document (post)`, patch only the heading-anchored
-  subsections of the wiki pages implicated by those touched files (create a page if
-  a module has none), and list the pages you touched under
-  `manifest.json → items[<id>].pages`. Decision digests **link** to the canonical
-  ADR — never restate its rationale.
+  and at which commit into `wiki/_meta/manifest.json`. It also calls
+  `scripts/_wiki_map.py → suggest_pages(repo_root, touched_files)` to compute a
+  `suggested_pages` field on the manifest entry — a list of
+  `(wiki_relpath, [h2_anchors])` tuples derived from a deterministic
+  module-slug → page mapping. The function has no judgment; re-runs are
+  idempotent. The agent decides what to do with each suggestion.
+- **Authored** — during `document (post)`, review the `suggested_pages` list as a
+  starting point, then patch only the heading-anchored subsections of the wiki
+  pages you decide to update (create a page if a module has none), and list the
+  pages you touched under `manifest.json → items[<id>].pages`. Decision digests
+  **link** to the canonical ADR — never restate its rationale. The `pages[]`
+  field is the agent's authored decision; `suggested_pages` is the script's
+  deterministic suggestion. The two are kept separate so re-ingestion never
+  silently overwrites an authored decision.
 
 The wiki is **opt-in**: gates and checks are no-ops until `docs/megaplan/wiki/`
 exists. `scripts/validate_wiki.py` verifies structure (manifest well-formed,

@@ -16,6 +16,7 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from _mdparse import extract_id, find_repo_root
+from _wiki_map import suggest_pages
 
 WIKI_REL = os.path.join("docs", "megaplan", "wiki")
 
@@ -143,6 +144,7 @@ def ingest(b_item_path):
     entry = dict(prior)
     entry["touched_files"] = touched
     entry["updated_at_commit"] = sha
+    entry["suggested_pages"] = suggest_pages(repo_root, touched)
     entry.setdefault("pages", [])  # agent fills these when it patches wiki pages
     entry.setdefault("adr_refs", [])
     manifest["items"][item_id] = entry

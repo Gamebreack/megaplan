@@ -110,6 +110,35 @@ def _check_pages(repo_root, wiki_dir, errors, warnings):
                     )
 
 
+def _check_manifest_advisories(wiki_dir, warnings):
+    """Surface advisories derived from the manifest's `suggested_pages` field.
+
+    Non-blocking: emitted as warnings. The agent owns the final `pages[]`
+    decision; this reminder only catches the case where the deterministic
+    suggestion was ignored.
+    """
+    manifest_path = os.path.join(wiki_dir, "_meta", "manifest.json")
+    if not os.path.exists(manifest_path):
+        return
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return
+    for item_id, entry in (data.get("items") or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        suggested = entry.get("suggested_pages") or []
+        pages = entry.get("pages") or []
+        if suggested and not pages:
+            paths = [p for p, _ in suggested]
+            warnings.append(
+                f"manifest item '{item_id}': suggested_pages is non-empty but "
+                f"pages[] is empty — confirm Wiki-Impact: none or list patched "
+                f"pages. suggested_pages: {paths}"
+            )
+
+
 def validate_wiki(repo_root):
     """Return (errors, warnings). Empty errors == structurally valid."""
     errors, warnings = [], []
@@ -118,6 +147,7 @@ def validate_wiki(repo_root):
         return errors, warnings  # opt-in: no wiki, nothing to validate
     _check_manifest(repo_root, wiki_dir, errors)
     _check_pages(repo_root, wiki_dir, errors, warnings)
+    _check_manifest_advisories(wiki_dir, warnings)
     return errors, warnings
 
 
