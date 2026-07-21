@@ -15,7 +15,17 @@ It combines three things:
 
 ## Loading this skill
 
-Place `AGENTS.md` at your project root. Most modern AI coding harnesses load it automatically.
+The fastest way to adopt Megaplan in a project is the **dumb-install bootstrap**:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.py | python3
+```
+
+Run this in your project directory (any git repo). It lays out `AGENTS.md`, `docs/megaplan/`, the framework scripts under `scripts/megaplan/`, and installs the pre-commit hook. The bootstrap resolves the latest version automatically; pin a specific version with `--ref v2.0.0`.
+
+Verify the install any time with `python scripts/megaplan/verify_workflow.py --selftest`.
+
+For harness-specific pickup of `AGENTS.md` (OpenCode auto-loads it, Claude Code wants a `CLAUDE.md` symlink, etc.), see the README's "Harness compatibility" table.
 
 ## How it works
 

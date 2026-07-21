@@ -511,3 +511,89 @@ def test_reminder_text_includes_suggested_pages_hint(tmp_path, capsys):
     # Either the stale check fires (commit ancestry) or the missing-pages
     # reminder fires. The reminder should mention suggested_pages.
     assert "suggested_pages" in combined or "0-B1" in combined
+
+
+# --------------------------------------------------------------------------- #
+# A-B1: verify_workflow --selftest mode
+# --------------------------------------------------------------------------- #
+
+
+def test_selftest_succeeds(tmp_path):
+    """In a fully-laid-out test repo, --selftest exits 0.
+
+    Uses the actual bootstrap (via --from-local at the framework repo)
+    to lay out the test project, then verifies selftest passes.
+    """
+    import subprocess
+
+    sys.path.append(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    )
+    import bootstrap
+
+    subprocess.run(["git", "init"], cwd=str(tmp_path), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@t"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "T"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+
+    framework_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with patch.object(sys, "argv", [
+        "bootstrap.py",
+        "--from-local", framework_repo,
+        "--ref", "main",
+        "--project-dir", str(tmp_path),
+        "--skip-hook",  # the test doesn't need the git hook
+    ]):
+        rc = bootstrap.main()
+    assert rc == 0, "bootstrap lay-out failed"
+
+    # Now run verify_workflow --selftest against the laid-out project.
+    result = subprocess.run(
+        [sys.executable, "scripts/verify_workflow.py", "--selftest", "--project-dir", str(tmp_path)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"--selftest should exit 0 in a complete install; got {result.returncode}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+
+def test_selftest_detects_missing_scripts(tmp_path):
+    """Missing framework scripts → --selftest exits non-zero with a clear message."""
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=str(tmp_path), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@t"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "T"],
+        cwd=str(tmp_path),
+        check=True,
+        capture_output=True,
+    )
+    (tmp_path / "AGENTS.md").write_text("# Megaplan\n")
+    # No scripts/ dir.
+    subprocess.run(["git", "add", "-A"], cwd=str(tmp_path), check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=str(tmp_path), check=True, capture_output=True)
+
+    result = subprocess.run(
+        [sys.executable, "scripts/verify_workflow.py", "--selftest", "--project-dir", str(tmp_path)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "scripts" in result.stdout.lower() or "scripts" in result.stderr.lower()

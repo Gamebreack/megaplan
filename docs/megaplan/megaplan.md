@@ -42,6 +42,24 @@ Gated by `python scripts/verify_workflow.py check <b_item> [--run-verifier]`.
   - `validate_wiki.py`, `validate_backlog.py`, and `verify_workflow.py` advisories
     are documented in the methodology as non-blocking. ✅
 
+### Cycle A — User-facing install
+
+- **Status**: done
+- **Objectives**:
+  - Ship a one-command install that any project can use to adopt megaplan.
+  - Resolve "latest version" automatically; pin only when the user asks.
+  - Verify the install works (a self-test the user can re-run any time).
+  - Keep the install non-destructive (skip existing files, never overwrite without
+    `--force`).
+- **Exit Criteria** (all met on 2026-07-21):
+  - `A-B1` (dumb-install bootstrap) reaches `done`. ✅
+  - `python scripts/bootstrap.py --from-local <repo> --ref main --project-dir <empty>` lays out
+    `AGENTS.md`, `docs/megaplan/`, the framework scripts, and the pre-commit hook in a clean
+    test repo. ✅
+  - `python scripts/megaplan/verify_workflow.py --selftest` reports the install is OK. ✅
+  - Re-running the bootstrap is idempotent (skip + warn, no destructive overwrite). ✅
+  - Full pytest suite green (65/65). ✅
+
 ## Errata
 
 - **2026-07-21 — Wiki is opt-in; the framework repo does not enable a wiki for itself.**

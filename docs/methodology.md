@@ -5,6 +5,28 @@ Full reference for the Megaplan plan-tracking system. See `AGENTS.md` for the co
 
 ---
 
+## Quick start (adopting megaplan in a project)
+
+The fastest way to adopt megaplan in any git project is the dumb-install bootstrap:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Gamebreack/megaplan/main/scripts/bootstrap.py | python3
+```
+
+The bootstrap resolves the latest release version automatically (falling back to `main` if the GitHub API is unreachable), downloads the framework archive, lays out the files into the project, installs the pre-commit hook, and runs a self-test.
+
+Flags: `--with-wiki` (also lay out the opt-in AI wiki templates), `--force` (overwrite existing files), `--ref v2.0.0` (pin a version), `--from-local PATH` (use a local framework checkout for development), `--project-dir PATH` (install into a different directory). Re-runs are idempotent.
+
+Verify the install any time:
+
+```bash
+python scripts/megaplan/verify_workflow.py --selftest
+```
+
+The full lifecycle is below; the bootstrap is the entry point.
+
+---
+
 ## What it is
 
 Megaplan is a **plan-tracking system** designed to give an AI agent the full context it needs to deliver software incrementally, safely, and traceably — without losing coherence across sessions.

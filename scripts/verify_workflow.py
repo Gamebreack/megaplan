@@ -519,11 +519,72 @@ def cmd_status(args):
     return 0
 
 
+# --------------------------------------------------------------------------- #
+# --selftest: confirm the install is internally consistent
+# --------------------------------------------------------------------------- #
+
+
+REQUIRED_SELFTEST_FILES = [
+    "AGENTS.md",
+    "scripts/megaplan/verify_workflow.py",
+    "scripts/megaplan/validate_backlog.py",
+    "scripts/megaplan/compile_spec.py",
+    "scripts/megaplan/ingest_wiki.py",
+    "scripts/megaplan/validate_wiki.py",
+    "scripts/megaplan/setup_hooks.py",
+    "scripts/megaplan/_mdparse.py",
+    "scripts/megaplan/_wiki_map.py",
+    "docs/megaplan/megaplan.md",
+    "docs/megaplan/backlog.md",
+    "docs/megaplan/glossary.md",
+]
+
+
+def cmd_selftest(args):
+    """Verify the megaplan install in `project_dir` is internally consistent."""
+    project_dir = os.path.abspath(args.project_dir)
+    if not os.path.isdir(project_dir):
+        print(f"selftest FAIL: {project_dir} is not a directory", file=sys.stderr)
+        return 1
+    missing = [
+        p
+        for p in REQUIRED_SELFTEST_FILES
+        if not os.path.exists(os.path.join(project_dir, p))
+    ]
+    if missing:
+        print("selftest FAIL: missing files:", file=sys.stderr)
+        for p in missing:
+            print(f"  - {p}", file=sys.stderr)
+        return 1
+    # Sanity: the framework modules import without error.
+    sys.path.insert(0, os.path.join(project_dir, "scripts", "megaplan"))
+    for mod in ("_mdparse", "_wiki_map", "validate_backlog", "verify_workflow",
+                "ingest_wiki", "validate_wiki"):
+        try:
+            __import__(mod)
+        except Exception as e:
+            print(f"selftest FAIL: {mod} import error: {e}", file=sys.stderr)
+            return 1
+    print("selftest OK: Megaplan install is internally consistent.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Megaplan workflow gate enforcement (Karpathy 3-Layer)"
     )
+    parser.add_argument(
+        "--selftest",
+        action="store_true",
+        help="Verify the install in --project-dir is internally consistent.",
+    )
+    parser.add_argument(
+        "--project-dir",
+        default=".",
+        help="Project directory for --selftest (default: current directory).",
+    )
     subparsers = parser.add_subparsers(dest="command")
+    subparsers.required = False
 
     check_parser = subparsers.add_parser(
         "check",
@@ -544,6 +605,8 @@ def main():
 
     args = parser.parse_args()
 
+    if args.selftest:
+        sys.exit(cmd_selftest(args))
     if args.command == "check":
         sys.exit(cmd_check(args))
     elif args.command == "status":

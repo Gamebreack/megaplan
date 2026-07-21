@@ -3,13 +3,34 @@ import os
 import stat
 import sys
 
+# Add the scripts/megaplan/ directory (where this file lives) to sys.path
+# so we can import the shared markdown parser. Works whether the file is
+# at <repo>/scripts/setup_hooks.py or at <repo>/scripts/megaplan/setup_hooks.py.
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from _mdparse import find_repo_root
+
 
 HOOK_SCRIPT = """#!/bin/bash
 # Megaplan pre-commit hook — validates backlog integrity, glossary, and workflow gates
 set -e
 
+# Walk up from this script's location to find the project root (the dir
+# containing AGENTS.md or .git/). Works whether the script is at
+# <root>/scripts/setup_hooks.py or <root>/scripts/megaplan/setup_hooks.py.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT=""
+DIR="$SCRIPT_DIR"
+while [ "$DIR" != "/" ]; do
+    if [ -f "$DIR/AGENTS.md" ] || [ -d "$DIR/.git" ]; then
+        REPO_ROOT="$DIR"
+        break
+    fi
+    DIR="$(dirname "$DIR")"
+done
+
+if [ -z "$REPO_ROOT" ]; then
+    REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
 
 EXIT_CODE=0
 
@@ -19,8 +40,8 @@ if [ -f "$REPO_ROOT/docs/megaplan/backlog.md" ]; then
     if [ "$MEGAPLAN_RUN_VERIFIER" = "1" ]; then
         ARGS="--run-verifier"
     fi
-    
-    if ! python3 "$REPO_ROOT/scripts/validate_backlog.py" "$REPO_ROOT" $ARGS 2>&1; then
+
+    if ! python3 "$REPO_ROOT/scripts/megaplan/validate_backlog.py" "$REPO_ROOT" $ARGS 2>&1; then
         echo ""
         echo "Megaplan validation FAILED. Commit blocked."
         echo "Fix the errors above and try again."
@@ -45,7 +66,10 @@ def main():
     )
     args = parser.parse_args()
 
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Walk up from the script's location to find the project root. Works
+    # whether the script is at <root>/scripts/setup_hooks.py or
+    # <root>/scripts/megaplan/setup_hooks.py.
+    repo_root = find_repo_root(start=os.path.dirname(os.path.abspath(__file__)))
     git_hooks_dir = os.path.join(repo_root, ".git", "hooks")
 
     if not os.path.exists(git_hooks_dir):

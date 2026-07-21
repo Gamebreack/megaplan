@@ -26,3 +26,4 @@ Notes section. Don't leave it `in-progress` — mark it `done` and list the drif
 | 0-B2 | Drop `_meta/ingestion.log` writes | done | — | — | [0-B2](backlog-items/0-B2.md) |
 | 0-B3 | Per-cycle waiver + freshness advisories | done | — | — | [0-B3](backlog-items/0-B3.md) |
 | 0-B4 | `verify_workflow.py` non-blocking wiki reminder | done | — | — | [0-B4](backlog-items/0-B4.md) |
+| A-B1 | Dumb-install bootstrap | done | — | — | [A-B1](backlog-items/A-B1.md) |
